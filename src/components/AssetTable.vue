@@ -149,6 +149,23 @@ const getSecondaryLine = assetPath
 
 const selectedAsset = ref<AssetItem | null>(null)
 
+// Floating active-row marker
+const markerStyle = ref<{ left: string; top: string } | null>(null)
+
+async function updateMarker() {
+  await nextTick()
+  if (!selectedAsset.value) { markerStyle.value = null; return }
+  const row = document.querySelector('.at-data-row--active') as HTMLElement | null
+  if (!row) { markerStyle.value = null; return }
+  const rect = row.getBoundingClientRect()
+  markerStyle.value = {
+    left: `${rect.left}px`,
+    top: `${rect.top + rect.height / 2 - 12}px`,
+  }
+}
+
+watch(() => selectedAsset.value?.id, updateMarker)
+
 function generateDataset(): AssetItem[] {
   const items: AssetItem[] = []
   for (let i = 0; i < 10473; i++) {
@@ -1063,7 +1080,9 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   :aria-selected="isSelected(item.id)"
                   :data-id="item.id"
                   class="at-data-row"
+                  :class="{ 'at-data-row--active': selectedAsset?.id === item.id }"
                   tabindex="0"
+                  @click="selectedAsset = item"
                 >
                   <template v-for="col in visibleCols" :key="col.id">
                     <div role="gridcell" :data-col-id="col.id" class="at-cell">
@@ -1074,10 +1093,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                         :aria-label="`Select ${item.name}`"
                         :checked="isSelected(item.id)"
                         @change.stop="toggleItem(item.id)"
+                        @click.stop
                       />
                       <!-- name -->
                       <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click="selectedAsset = item">
+                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="selectedAsset = item">
                           {{ item.name }}
                         </button>
                         <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1184,7 +1204,9 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
               :aria-selected="isSelected(item.id)"
               :data-id="item.id"
               class="at-data-row"
+              :class="{ 'at-data-row--active': selectedAsset?.id === item.id }"
               tabindex="0"
+              @click="selectedAsset = item"
             >
               <template v-for="col in visibleCols" :key="col.id">
                 <div role="gridcell" :data-col-id="col.id" class="at-cell">
@@ -1194,9 +1216,10 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                     :aria-label="`Select ${item.name}`"
                     :checked="isSelected(item.id)"
                     @change.stop="toggleItem(item.id)"
+                    @click.stop
                   />
                   <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click="selectedAsset = item">
+                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="selectedAsset = item">
                       {{ item.name }}
                     </button>
                     <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1304,4 +1327,13 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
     @close="selectedAsset = null"
     @navigate="selectedAsset = $event"
   />
+
+  <Teleport to="body">
+    <div
+      v-if="markerStyle"
+      class="at-row-marker"
+      :style="markerStyle"
+      aria-hidden="true"
+    />
+  </Teleport>
 </template>

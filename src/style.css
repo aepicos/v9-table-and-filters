@@ -472,6 +472,7 @@ html, body {
   transition: background 0.1s;
   outline: none;
   position: relative;
+  cursor: pointer;
 }
 
 .at-density-comfortable .at-data-row {
@@ -484,6 +485,25 @@ html, body {
 
 .at-data-row:hover {
   background: var(--at-row-hover);
+}
+
+.at-data-row:hover .at-asset-name-primary {
+  text-decoration: none;
+}
+
+.at-data-row--active {
+  background: var(--v9-ui-hover);
+}
+
+.at-row-marker {
+  position: fixed;
+  width: 4px;
+  height: 24px;
+  border-radius: 0 3px 3px 0;
+  background: var(--v9-ui-selected);
+  pointer-events: none;
+  z-index: 3;
+  transition: top 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .at-data-row[aria-selected="true"] {
@@ -632,7 +652,7 @@ html, body {
 .at-asset-name-primary {
   font-size: 13px;
   font-weight: 500;
-  color: var(--at-text-link);
+  color: var(--at-text);
   background: none;
   border: none;
   cursor: pointer;
@@ -642,10 +662,11 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  text-decoration: underline;
 }
 
 .at-asset-name-primary:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .at-asset-name-primary:focus-visible {
