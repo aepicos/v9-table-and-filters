@@ -4,6 +4,8 @@ import { ref, watch, onMounted, nextTick } from 'vue'
 export interface RadioBarOption {
   label: string
   value: string
+  icon?: string      // SVG path d attribute (viewBox="0 0 20 20", stroke)
+  iconOnly?: boolean // hide text label; label becomes aria-label only
 }
 
 const props = withDefaults(defineProps<{
@@ -101,12 +103,16 @@ function hideTooltip() {
       v-for="opt in options"
       :key="opt.value"
       class="rb-btn"
-      :class="{ 'rb-btn--selected': modelValue === opt.value }"
+      :class="{ 'rb-btn--selected': modelValue === opt.value, 'rb-btn--icon-only': opt.iconOnly }"
       role="radio"
       :aria-checked="modelValue === opt.value"
+      :aria-label="opt.iconOnly ? opt.label : undefined"
       @click="select(opt.value)"
     >
-      {{ opt.label }}
+      <svg v-if="opt.icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path :d="opt.icon" />
+      </svg>
+      <span v-if="!opt.iconOnly">{{ opt.label }}</span>
     </button>
 
     <!-- Clear — icon button (subtle) with teleported tooltip -->
@@ -222,15 +228,23 @@ function hideTooltip() {
 
 /* ── Sizes ───────────────────────────────────────────────────────── */
 
-.rb-wrap--s .rb-btn   { height: var(--v9-input-s); padding: 0 var(--v9-space-s); }
-.rb-wrap--s .rb-label { padding: 0 var(--v9-space-xs); }
-.rb-wrap--s .rb-ib    { width: var(--v9-input-s); height: var(--v9-input-s); padding: var(--v9-space-adj-m); }
-.rb-wrap--s .rb-ib svg { width: var(--v9-icon-s); height: var(--v9-icon-s); }
+.rb-wrap--s .rb-btn            { height: var(--v9-input-s); padding: 0 var(--v9-space-s); }
+.rb-wrap--s .rb-btn--icon-only { width: var(--v9-input-s); padding: 0; }
+.rb-wrap--s .rb-btn svg        { width: var(--v9-icon-s); height: var(--v9-icon-s); }
+.rb-wrap--s .rb-label          { padding: 0 var(--v9-space-xs); }
+.rb-wrap--s .rb-ib             { width: var(--v9-input-s); height: var(--v9-input-s); padding: var(--v9-space-adj-m); }
+.rb-wrap--s .rb-ib svg         { width: var(--v9-icon-s); height: var(--v9-icon-s); }
 
-.rb-wrap--m .rb-btn   { height: var(--v9-input-m); padding: 0 var(--v9-space-m); }
-.rb-wrap--m .rb-label { padding: 0 var(--v9-space-xs); }
-.rb-wrap--m .rb-ib    { width: var(--v9-input-m); height: var(--v9-input-m); padding: var(--v9-space-xs); }
-.rb-wrap--m .rb-ib svg { width: var(--v9-icon-m); height: var(--v9-icon-m); }
+.rb-wrap--m .rb-btn            { height: var(--v9-input-m); padding: 0 var(--v9-space-m); }
+.rb-wrap--m .rb-btn--icon-only { width: var(--v9-input-m); padding: 0; }
+.rb-wrap--m .rb-btn svg        { width: var(--v9-icon-m); height: var(--v9-icon-m); }
+.rb-wrap--m .rb-label          { padding: 0 var(--v9-space-xs); }
+.rb-wrap--m .rb-ib             { width: var(--v9-input-m); height: var(--v9-input-m); padding: var(--v9-space-xs); }
+.rb-wrap--m .rb-ib svg         { width: var(--v9-icon-m); height: var(--v9-icon-m); }
+
+.rb-wrap--l .rb-btn            { height: var(--v9-input-l); padding: 0 var(--v9-space-l); }
+.rb-wrap--l .rb-btn--icon-only { width: var(--v9-input-l); padding: 0; }
+.rb-wrap--l .rb-btn svg        { width: var(--v9-icon-m); height: var(--v9-icon-m); }
 
 /* ── Icon button wrapper ─────────────────────────────────────────── */
 

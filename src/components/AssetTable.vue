@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
+import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
+import { assetPath } from '../data/assets'
 import RadioBar from './RadioBar.vue'
+import AssetDrawer from './AssetDrawer.vue'
 
 /* ============================================================
    PROPS
@@ -65,35 +68,7 @@ const INITIAL_COLUMNS: ColDef[] = [
    DATA TYPES
    ============================================================ */
 
-type AssetType = 'API' | 'Application' | 'Container image' | 'Package' | 'Repository' | 'SBOM' | 'Service' | 'Website'
-type TeamName = 'Legendary Shack Shakers' | 'Love and Rockets' | 'Nouvelle Vague' | 'Public Service Broadcasting' | 'The Bad Seeds' | 'Trimdon Grange Explosion'
-type LanguageName = 'C#' | 'Go' | 'Java' | 'Javascript' | 'Python' | 'Ruby' | 'Typescript'
-
-interface AssetItem {
-  id: string
-  name: string
-  assetClass: string
-  type: AssetType
-  issues: { critical: number; high: number; medium: number; low: number }
-  riskScore: number
-  coverage: string[]
-  team: TeamName
-  language: LanguageName
-  source: string[]
-  environment: string
-  firstSeen: string
-  lastScan: string
-  visibility: string
-  activityStatus: string
-  ecosystem: string
-  lifecycleStage: string
-  fixability: string
-  exploitability: string
-  issueType: string
-  license: string
-  licenseType: string
-  tags: string[]
-}
+type AssetItem = AssetItemType
 
 /* ============================================================
    DATA GENERATOR
@@ -170,20 +145,9 @@ function getBitmaskSubset(arr: string[], bitmask: number): string[] {
   return result
 }
 
-function getSecondaryLine(item: AssetItem): string {
-  const name = item.name
-  switch (item.type) {
-    case 'Repository':      return `github.com/org/${name}`
-    case 'Container image': return `docker.io/org/${name}`
-    case 'Package':         return item.language === 'Java' ? `pkg:maven/${name}` : `pkg:npm/${name}`
-    case 'API':             return `${name}.api.internal`
-    case 'SBOM':            return item.id
-    case 'Service':         return `${name}.svc.cluster.local`
-    case 'Website':         return `https://${name}.io`
-    case 'Application':     return `app:${name}`
-    default:                return name
-  }
-}
+const getSecondaryLine = assetPath
+
+const selectedAsset = ref<AssetItem | null>(null)
 
 function generateDataset(): AssetItem[] {
   const items: AssetItem[] = []
@@ -1113,7 +1077,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                       />
                       <!-- name -->
                       <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`">
+                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click="selectedAsset = item">
                           {{ item.name }}
                         </button>
                         <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1232,7 +1196,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                     @change.stop="toggleItem(item.id)"
                   />
                   <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`">
+                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click="selectedAsset = item">
                       {{ item.name }}
                     </button>
                     <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1333,4 +1297,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
       class="at-sr-only"
     />
   </div>
+
+  <AssetDrawer
+    :asset="selectedAsset"
+    :assets="sortedFlatItems"
+    @close="selectedAsset = null"
+    @navigate="selectedAsset = $event"
+  />
 </template>
