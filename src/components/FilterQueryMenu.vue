@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { type FilterDef, type FilterGroup, type AdvancedQuery } from '../data/filters'
 import FilterGroupOperator from './FilterGroupOperator.vue'
 import FilterMenu from './FilterMenu.vue'
+import FilterChip from './FilterChip.vue'
 
 const props = defineProps<{
   filterDefs: FilterDef[]
@@ -101,6 +102,18 @@ function removeCondition(groupId: string, conditionId: string) {
   const g = groups.value.find(g => g.id === groupId)
   if (!g) return
   g.conditions = g.conditions.filter(c => c.id !== conditionId)
+}
+
+function updateConditionOperator(groupId: string, conditionId: string, operator: string) {
+  const g = groups.value.find(g => g.id === groupId)
+  const c = g?.conditions.find(c => c.id === conditionId)
+  if (c) c.operator = operator
+}
+
+function updateConditionValue(groupId: string, conditionId: string, value: string) {
+  const g = groups.value.find(g => g.id === groupId)
+  const c = g?.conditions.find(c => c.id === conditionId)
+  if (c) c.value = value
 }
 
 function openAddCondition(groupId: string) {
@@ -229,23 +242,13 @@ function apply() {
                 @toggle="toggleGroupOperator(group.id)"
               />
 
-              <div class="v9-chip">
-                <div class="v9-chip__section v9-chip__key"><span>{{ cond.key }}</span></div>
-                <div class="v9-chip__divider" />
-                <div class="v9-chip__section v9-chip__operator-dimmed"><span>{{ cond.operator }}</span></div>
-                <div class="v9-chip__divider" />
-                <div class="v9-chip__section"><span>{{ cond.value }}</span></div>
-                <div class="v9-chip__divider" />
-                <button
-                  class="v9-chip__delete"
-                  :aria-label="`Remove ${cond.key} condition`"
-                  @click="removeCondition(group.id, cond.id)"
-                >
-                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="currentColor">
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
-              </div>
+              <FilterChip
+                :chip="cond"
+                :filter-def="filterDefs.find(d => d.id === cond.filterId)"
+                @remove="removeCondition(group.id, cond.id)"
+                @update-operator="op => updateConditionOperator(group.id, cond.id, op)"
+                @update-value="val => updateConditionValue(group.id, cond.id, val)"
+              />
             </div>
 
             <!-- Add condition — its own row, no operator prefix -->
