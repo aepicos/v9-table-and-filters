@@ -5,6 +5,8 @@ import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } fr
 import { assetPath } from '../data/assets'
 import RadioBar from './RadioBar.vue'
 import AssetDrawer from './AssetDrawer.vue'
+import SortPopover from './SortPopover.vue'
+import type { SortColDef } from './SortPopover.vue'
 
 /* ============================================================
    PROPS
@@ -329,8 +331,12 @@ type SortDir = 'asc' | 'desc'
 const columns = ref<ColDef[]>(INITIAL_COLUMNS.map((c) => ({ ...c })))
 const density = ref<Density>('comfortable')
 const groupBy = ref<string | null>(null)
-const sortCol = ref<ColId | null>(null)
+const sortCol = ref<ColId | null>('name')
 const sortDir = ref<SortDir>('asc')
+const groupSortCol = ref<string>('follow')
+const groupSortDir = ref<SortDir>('asc')
+const sortPopoverOpen = ref(false)
+const sortBtnRef = ref<HTMLElement | null>(null)
 
 // Selection
 const selMode = ref<SelMode>('none')
@@ -493,6 +499,109 @@ const sortedFlatItems = computed<AssetItem[]>(() => {
   })
 })
 
+const sortLabel = computed(() => columns.value.find(c => c.id === sortCol.value)?.label ?? '')
+const sortArrow = computed(() => sortDir.value === 'asc' ? '↓' : '↑')
+
+const sortableColumns = computed<SortColDef[]>(() =>
+  columns.value.filter(c => c.sortable && c.id !== 'select').map(c => ({ id: c.id, label: c.label }))
+)
+
+const sortDisplayText = computed(() => {
+  const assetPart = `${sortLabel.value} ${sortArrow.value}`
+  if (groupBy.value && groupSortCol.value !== 'follow') {
+    const groupLabel = groupSortCol.value === 'name' ? 'Name' : 'Risk score'
+    const groupArrow = groupSortDir.value === 'asc' ? '↓' : '↑'
+    return `${groupLabel} ${groupArrow} › ${assetPart}`
+  }
+  return assetPart
+})
+
+const sortedGroups = computed<GroupState[]>(() => {
+  if (!groupBy.value) return groups.value
+
+  const gBy = groupBy.value
+
+  // Explicit group sort (Name or Risk score)
+  if (groupSortCol.value !== 'follow') {
+    const mul = groupSortDir.value === 'asc' ? 1 : -1
+    if (groupSortCol.value === 'name') {
+      return [...groups.value].sort((a, b) => mul * a.label.localeCompare(b.label))
+    }
+    if (groupSortCol.value === 'riskScore') {
+      const byGroup = new Map<string, AssetItem[]>()
+      for (const g of groups.value) byGroup.set(g.id, [])
+      for (const item of filteredDataset.value) {
+        const gId = String((item as unknown as Record<string, unknown>)[gBy])
+        byGroup.get(gId)?.push(item)
+      }
+      return [...groups.value].sort((a, b) => {
+        const sa = (byGroup.get(a.id) ?? []).map(i => i.riskScore).sort((x, y) => y - x)
+        const sb = (byGroup.get(b.id) ?? []).map(i => i.riskScore).sort((x, y) => y - x)
+        for (let i = 0; i < Math.max(sa.length, sb.length); i++) {
+          const va = sa[i] ?? -Infinity
+          const vb = sb[i] ?? -Infinity
+          if (va !== vb) return mul * (va - vb)
+        }
+        return 0
+      })
+    }
+    return groups.value
+  }
+
+  // Follow asset sorting
+  if (!sortCol.value) return groups.value
+
+  const col = sortCol.value
+  const mul = sortDir.value === 'asc' ? 1 : -1
+
+  // Build groupId → all items map once (avoids O(G²·N) repeated filtering)
+  const byGroup = new Map<string, AssetItem[]>()
+  for (const g of groups.value) byGroup.set(g.id, [])
+  for (const item of filteredDataset.value) {
+    const gId = String((item as unknown as Record<string, unknown>)[gBy])
+    byGroup.get(gId)?.push(item)
+  }
+
+  function compareGroups(a: GroupState, b: GroupState): number {
+    const ia = byGroup.get(a.id) ?? []
+    const ib = byGroup.get(b.id) ?? []
+
+    if (col === 'riskScore') {
+      const sa = ia.map(i => i.riskScore).sort((x, y) => y - x)
+      const sb = ib.map(i => i.riskScore).sort((x, y) => y - x)
+      for (let i = 0; i < Math.max(sa.length, sb.length); i++) {
+        const va = sa[i] ?? -Infinity
+        const vb = sb[i] ?? -Infinity
+        if (va !== vb) return mul * (va - vb)
+      }
+      return 0
+    }
+
+    function modal(items: AssetItem[]): [string, number] {
+      const freq = new Map<string, number>()
+      for (const item of items) {
+        const v = String((item as unknown as Record<string, unknown>)[col] ?? '')
+        freq.set(v, (freq.get(v) ?? 0) + 1)
+      }
+      let bestVal = '', bestCount = 0
+      for (const [v, c] of freq) {
+        if (c > bestCount || (c === bestCount && v < bestVal)) {
+          bestVal = v; bestCount = c
+        }
+      }
+      return [bestVal, bestCount]
+    }
+
+    const [va, ca] = modal(ia)
+    const [vb, cb] = modal(ib)
+    const cmpVal = va.localeCompare(vb)
+    if (cmpVal !== 0) return mul * cmpVal
+    return cb - ca
+  }
+
+  return [...groups.value].sort(compareGroups)
+})
+
 // Selection helpers
 function isSelected(id: string): boolean {
   if (selMode.value === 'none') return false
@@ -588,6 +697,18 @@ function handleSort(colId: ColId) {
     sortCol.value = colId
     sortDir.value = 'asc'
   }
+  groupSortCol.value = 'follow'
+}
+
+function setSort(col: string, dir: SortDir) {
+  sortCol.value = col as ColId
+  sortDir.value = dir
+  sortPopoverOpen.value = false
+}
+
+function setGroupSort(col: string, dir: SortDir) {
+  groupSortCol.value = col
+  groupSortDir.value = dir
 }
 
 /* ============================================================
@@ -872,6 +993,32 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
           @update:model-value="(v) => { groupBy = v || null }"
         />
 
+        <!-- Sort by display -->
+        <button
+          ref="sortBtnRef"
+          class="at-sort-display"
+          :aria-expanded="sortPopoverOpen"
+          aria-haspopup="listbox"
+          @click.stop="sortPopoverOpen = !sortPopoverOpen"
+        >
+          <span class="at-sort-display__label">Sort by:</span>
+          <span class="at-sort-display__value">{{ sortDisplayText }}</span>
+        </button>
+
+        <SortPopover
+          v-if="sortPopoverOpen"
+          :sort-col="sortCol"
+          :sort-dir="sortDir"
+          :group-sort-col="groupSortCol"
+          :group-sort-dir="groupSortDir"
+          :columns="sortableColumns"
+          :is-grouped="!!groupBy"
+          :trigger-el="sortBtnRef"
+          @set-sort="(col, dir) => setSort(col, dir)"
+          @set-group-sort="(col, dir) => setGroupSort(col, dir)"
+          @close="sortPopoverOpen = false"
+        />
+
         <!-- Density toggle -->
         <div class="at-density-toggle" role="group" aria-label="Row density">
           <button
@@ -1012,7 +1159,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
         <div id="at-grid-body">
           <!-- Grouped mode -->
           <template v-if="groupBy">
-            <div v-for="group in groups" :key="group.id">
+            <div v-for="group in sortedGroups" :key="group.id">
               <!-- Group header -->
               <div
                 role="row"
