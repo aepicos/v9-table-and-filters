@@ -44,8 +44,7 @@
   --v9-ui-icon:         #A1A1AA;
   --v9-ui-border:       #E4E4E7;
   --v9-ui-border-light: #F0F0F2;
-  --v9-ui-hover:        #F4F4F5;
-  --v9-ui-hover-dark:   #E4E4E7;
+  --v9-ui-hover:        #EEEDEF;
   --v9-ui-canvas:       #F7F7F8;
   --v9-ui-bg:           #FFFFFF;
   --v9-ui-focus:        #2563EB;
@@ -77,6 +76,7 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root {
+    --v9-ui-hover:           #363543;
     --v9-ui-selected:        #E4E4E7;
     --v9-input-primary-bg:   #3E3E47;
   }

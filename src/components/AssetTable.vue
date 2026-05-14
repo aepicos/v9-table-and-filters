@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
+import RadioBar from './RadioBar.vue'
 
 /* ============================================================
    PROPS
@@ -875,21 +876,20 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
       </div>
       <div class="at-table-header__actions">
         <!-- Group by -->
-        <div class="at-segmented-control">
-          <label for="at-group-select" class="at-segmented-control__label">Group by:</label>
-          <select
-            id="at-group-select"
-            class="at-segmented-select"
-            :value="groupBy ?? ''"
-            @change="(e) => { groupBy = (e.target as HTMLSelectElement).value || null }"
-          >
-            <option value="">None</option>
-            <option value="assetClass">Class</option>
-            <option value="team">Team</option>
-            <option value="type">Type</option>
-            <option value="environment">Environment</option>
-          </select>
-        </div>
+        <RadioBar
+          label="Group by:"
+          size="s"
+          :show-clear="true"
+          clear-tooltip="Clear grouping"
+          :options="[
+            { label: 'Class',       value: 'assetClass' },
+            { label: 'Team',        value: 'team' },
+            { label: 'Type',        value: 'type' },
+            { label: 'Environment', value: 'environment' },
+          ]"
+          :model-value="groupBy ?? ''"
+          @update:model-value="(v) => { groupBy = v || null }"
+        />
 
         <!-- Density toggle -->
         <div class="at-density-toggle" role="group" aria-label="Row density">

@@ -1,0 +1,283 @@
+<script setup lang="ts">
+import { ref, watch, onMounted, nextTick } from 'vue'
+
+export interface RadioBarOption {
+  label: string
+  value: string
+}
+
+const props = withDefaults(defineProps<{
+  options: RadioBarOption[]
+  modelValue: string
+  label?: string
+  size?: 's' | 'm' | 'l'
+  showClear?: boolean
+  clearTooltip?: string
+}>(), {
+  size: 'm',
+  showClear: false,
+  clearTooltip: 'Clear',
+})
+
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+}>()
+
+function select(value: string) {
+  emit('update:modelValue', value)
+}
+
+function clear() {
+  emit('update:modelValue', '')
+}
+
+// Sliding indicator
+const wrapRef = ref<HTMLElement | null>(null)
+const indicatorStyle = ref<{ left: string; width: string } | null>(null)
+
+async function updateIndicator() {
+  if (!wrapRef.value || !props.modelValue) {
+    indicatorStyle.value = null
+    return
+  }
+  await nextTick()
+  const btn = wrapRef.value.querySelector('.rb-btn--selected') as HTMLElement | null
+  if (!btn) { indicatorStyle.value = null; return }
+  const wrapRect = wrapRef.value.getBoundingClientRect()
+  const btnRect = btn.getBoundingClientRect()
+  indicatorStyle.value = {
+    left: `${btnRect.left - wrapRect.left}px`,
+    width: `${btnRect.width}px`,
+  }
+}
+
+watch(() => props.modelValue, updateIndicator)
+onMounted(updateIndicator)
+
+// Teleported tooltip positioning
+const ibRef = ref<HTMLElement | null>(null)
+const tooltipVisible = ref(false)
+const tooltipStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' })
+
+function showTooltip() {
+  if (!ibRef.value) return
+  const rect = ibRef.value.getBoundingClientRect()
+  tooltipStyle.value = {
+    top: `${rect.top - 4}px`,
+    left: `${rect.left + rect.width / 2}px`,
+  }
+  tooltipVisible.value = true
+}
+
+function hideTooltip() {
+  tooltipVisible.value = false
+}
+</script>
+
+<template>
+  <div
+    ref="wrapRef"
+    class="rb-wrap"
+    :class="`rb-wrap--${size}`"
+    role="radiogroup"
+    :aria-label="label ?? 'Options'"
+  >
+    <!-- Track background -->
+    <div class="rb-track" aria-hidden="true" />
+
+    <!-- Sliding selected indicator -->
+    <div
+      v-if="indicatorStyle"
+      class="rb-indicator"
+      :style="indicatorStyle"
+      aria-hidden="true"
+    />
+
+    <!-- Optional label -->
+    <span v-if="label" class="rb-label">{{ label }}</span>
+
+    <!-- Option buttons -->
+    <button
+      v-for="opt in options"
+      :key="opt.value"
+      class="rb-btn"
+      :class="{ 'rb-btn--selected': modelValue === opt.value }"
+      role="radio"
+      :aria-checked="modelValue === opt.value"
+      @click="select(opt.value)"
+    >
+      {{ opt.label }}
+    </button>
+
+    <!-- Clear — icon button (subtle) with teleported tooltip -->
+    <div v-if="showClear && !!modelValue" class="rb-ib-wrap">
+      <button
+        ref="ibRef"
+        class="rb-ib"
+        :aria-label="clearTooltip"
+        @click="clear"
+        @mouseenter="showTooltip"
+        @mouseleave="hideTooltip"
+        @focus="showTooltip"
+        @blur="hideTooltip"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+
+      <Teleport to="body">
+        <div
+          v-if="tooltipVisible"
+          class="v9-rb-tooltip"
+          role="tooltip"
+          :style="tooltipStyle"
+        >
+          {{ clearTooltip }}
+        </div>
+      </Teleport>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* ── Wrapper ─────────────────────────────────────────────────────── */
+
+.rb-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v9-space-adj-m);
+  font-family: var(--v9-font);
+}
+
+/* ── Track ───────────────────────────────────────────────────────── */
+
+.rb-track {
+  position: absolute;
+  inset: -2px;
+  background: var(--v9-ui-canvas);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: calc(var(--v9-radius-m) + 2px);
+  pointer-events: none;
+}
+
+/* ── Sliding indicator ───────────────────────────────────────────── */
+
+.rb-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  pointer-events: none;
+  transition: left 0.18s cubic-bezier(0.4, 0, 0.2, 1), width 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Label ───────────────────────────────────────────────────────── */
+
+.rb-label {
+  position: relative;
+  color: var(--v9-ui-dimmed);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Option button base ──────────────────────────────────────────── */
+
+.rb-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-dimmed);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.rb-btn:hover { background: var(--v9-ui-hover); }
+.rb-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -1px; }
+
+/* ── Selected option ─────────────────────────────────────────────── */
+
+.rb-btn--selected {
+  color: var(--v9-ui-selected);
+  font-weight: var(--v9-font-weight-strong);
+  cursor: default;
+}
+.rb-btn--selected:hover { background: none; }
+
+/* ── Sizes ───────────────────────────────────────────────────────── */
+
+.rb-wrap--s .rb-btn   { height: var(--v9-input-s); padding: 0 var(--v9-space-s); }
+.rb-wrap--s .rb-label { padding: 0 var(--v9-space-xs); }
+.rb-wrap--s .rb-ib    { width: var(--v9-input-s); height: var(--v9-input-s); padding: var(--v9-space-adj-m); }
+.rb-wrap--s .rb-ib svg { width: var(--v9-icon-s); height: var(--v9-icon-s); }
+
+.rb-wrap--m .rb-btn   { height: var(--v9-input-m); padding: 0 var(--v9-space-m); }
+.rb-wrap--m .rb-label { padding: 0 var(--v9-space-xs); }
+.rb-wrap--m .rb-ib    { width: var(--v9-input-m); height: var(--v9-input-m); padding: var(--v9-space-xs); }
+.rb-wrap--m .rb-ib svg { width: var(--v9-icon-m); height: var(--v9-icon-m); }
+
+/* ── Icon button wrapper ─────────────────────────────────────────── */
+
+.rb-ib-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── Icon button (subtle variant) ───────────────────────────────── */
+
+.rb-ib {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  color: var(--v9-ui-icon);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+
+.rb-ib:hover { background: var(--v9-ui-hover); }
+.rb-ib:active { box-shadow: inset 0px 4px 2px -2px rgba(28, 28, 33, 0.12); }
+.rb-ib:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -1px; }
+</style>
+
+<!-- Unscoped: tooltip is teleported to <body> outside this component's scope -->
+<style>
+.v9-rb-tooltip {
+  position: fixed;
+  transform: translateX(-50%) translateY(-100%);
+  width: max-content;
+  background: var(--v9-tooltip-bg);
+  color: var(--v9-tooltip-text);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  padding: var(--v9-space-xs) var(--v9-space-s);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.10), 0px 4px 6px -2px rgba(0,0,0,0.06);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+}
+</style>
