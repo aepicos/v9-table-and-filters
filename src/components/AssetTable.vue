@@ -955,7 +955,7 @@ function onScroll() {
 
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as HTMLElement
-  if (!target.closest('.at-toolbar-item')) {
+  if (!target.closest('.at-toolbar-item') && !target.closest('.topt-panel')) {
     colPanelOpen.value = false
   }
   // Close the drawer on outside click, unless the click is inside the
@@ -1095,64 +1095,19 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
           @close="sortPopoverOpen = false"
         />
 
-        <!-- Density toggle -->
-        <div class="at-density-toggle" role="group" aria-label="Row density">
-          <button
-            class="at-density-btn"
-            :class="{ active: density === 'comfortable' }"
-            :aria-pressed="density === 'comfortable'"
-            title="Comfortable density"
-            @click="density = 'comfortable'"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="4" rx="1" fill="currentColor" opacity="0.7"/>
-              <rect x="1" y="8" width="14" height="4" rx="1" fill="currentColor" opacity="0.4"/>
-            </svg>
-          </button>
-          <button
-            class="at-density-btn"
-            :class="{ active: density === 'compact' }"
-            :aria-pressed="density === 'compact'"
-            title="Compact density"
-            @click="density = 'compact'"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.7"/>
-              <rect x="1" y="6" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.5"/>
-              <rect x="1" y="10" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.4"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Column toggle -->
+        <!-- Table options trigger -->
         <div class="at-toolbar-item">
           <button
-            class="at-icon-btn at-icon-btn--labeled"
+            class="at-icon-btn at-icon-btn--square"
             :aria-expanded="colPanelOpen"
             aria-haspopup="dialog"
+            title="Table options"
             @click.stop="colPanelOpen = !colPanelOpen"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="5" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/>
-              <rect x="8" y="1" width="5" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1q-.09-.03-.18-.03c-.17 0-.34.09-.43.25l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1q.09.03.18.03c.17 0 .34-.09.43-.25l2-3.46c.12-.22.07-.49-.12-.64zm-1.98-1.71c.04.31.05.52.05.73s-.02.43-.05.73l-.14 1.13.89.7 1.08.84-.7 1.21-1.27-.51-1.04-.42-.9.68c-.43.32-.84.56-1.25.73l-1.06.43-.16 1.13-.2 1.35h-1.4l-.19-1.35-.16-1.13-1.06-.43c-.43-.18-.83-.41-1.23-.71l-.91-.7-1.06.43-1.27.51-.7-1.21 1.08-.84.89-.7-.14-1.13c-.03-.31-.05-.54-.05-.74s.02-.43.05-.73l.14-1.13-.89-.7-1.08-.84.7-1.21 1.27.51 1.04.42.9-.68c.43-.32.84-.56 1.25-.73l1.06-.43.16-1.13.2-1.35h1.39l.19 1.35.16 1.13 1.06.43c.43.18.83.41 1.23.71l.91.7 1.06-.43 1.27-.51.7 1.21-1.07.85-.89.7zM12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4m0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2"/>
             </svg>
-            Columns
           </button>
-          <div v-if="colPanelOpen" class="at-dropdown-panel" role="dialog" aria-label="Column visibility">
-            <h3 class="at-dropdown-panel__title">Columns</h3>
-            <label
-              v-for="col in columns.filter(c => !c.sticky && c.id !== 'actions')"
-              :key="col.id"
-              class="at-col-vis-item"
-            >
-              <input
-                type="checkbox"
-                :checked="col.visible"
-                @change="toggleColVisibility(col.id)"
-              />
-              {{ col.label }}
-            </label>
-          </div>
         </div>
       </div>
     </div>
@@ -1536,6 +1491,83 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
     @close="selectedAsset = null"
     @navigate="selectedAsset = $event"
   />
+
+  <!-- Table options drawer -->
+  <Teleport to="body">
+    <Transition name="topt">
+      <aside
+        v-if="colPanelOpen"
+        class="topt-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Table options"
+      >
+        <header class="topt-header">
+          <span class="topt-header__title">Table options</span>
+          <button class="topt-header__close" aria-label="Close" @click="colPanelOpen = false">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+              <path d="M15.25 4.75L4.75 15.25M4.75 4.75l10.5 10.5"/>
+            </svg>
+          </button>
+        </header>
+
+        <div class="topt-content">
+          <!-- Row density -->
+          <section class="topt-section">
+            <h3 class="topt-section__title">Row density</h3>
+            <RadioBar
+              size="l"
+              :stretch="true"
+              aria-label="Row density"
+              :options="[
+                {
+                  label: 'Loose',
+                  value: 'comfortable',
+                  icon: 'M22 22H2V2H22V22ZM4 20H20V13H4V20ZM4 11H20V4H4V11Z',
+                  iconViewBox: '0 0 24 24',
+                  iconFilled: true,
+                  iconFillRule: 'evenodd',
+                  iconClipRule: 'evenodd',
+                },
+                {
+                  label: 'Tight',
+                  value: 'compact',
+                  icon: 'M22 22H2V2H22V22ZM4 20H20V16H4V20ZM4 14H20V10H4V14ZM4 8H20V4H4V8Z',
+                  iconViewBox: '0 0 24 24',
+                  iconFilled: true,
+                  iconFillRule: 'evenodd',
+                  iconClipRule: 'evenodd',
+                },
+              ]"
+              :model-value="density"
+              @update:model-value="(v) => { density = v as 'comfortable' | 'compact' }"
+            />
+          </section>
+
+          <div class="topt-divider" />
+
+          <!-- Columns -->
+          <section class="topt-section">
+            <h3 class="topt-section__title">Columns</h3>
+            <div class="topt-col-list">
+              <label
+                v-for="col in columns.filter(c => !c.sticky && c.id !== 'actions')"
+                :key="col.id"
+                class="at-col-vis-item"
+              >
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  @change="toggleColVisibility(col.id)"
+                />
+                {{ col.label }}
+              </label>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </Transition>
+  </Teleport>
 
   <Teleport to="body">
     <div

@@ -4,8 +4,12 @@ import { ref, watch, onMounted, nextTick } from 'vue'
 export interface RadioBarOption {
   label: string
   value: string
-  icon?: string      // SVG path d attribute (viewBox="0 0 20 20", stroke)
-  iconOnly?: boolean // hide text label; label becomes aria-label only
+  icon?: string          // SVG path d attribute
+  iconViewBox?: string   // defaults to "0 0 20 20"
+  iconFilled?: boolean   // true = fill="currentColor", false = stroke-based
+  iconFillRule?: string  // e.g. "evenodd"
+  iconClipRule?: string  // e.g. "evenodd"
+  iconOnly?: boolean     // hide text label; label becomes aria-label only
 }
 
 const props = withDefaults(defineProps<{
@@ -13,10 +17,12 @@ const props = withDefaults(defineProps<{
   modelValue: string
   label?: string
   size?: 's' | 'm' | 'l'
+  stretch?: boolean
   showClear?: boolean
   clearTooltip?: string
 }>(), {
   size: 'm',
+  stretch: false,
   showClear: false,
   clearTooltip: 'Clear',
 })
@@ -117,7 +123,7 @@ function hideTooltip() {
   <div
     ref="wrapRef"
     class="rb-wrap"
-    :class="`rb-wrap--${size}`"
+    :class="[`rb-wrap--${size}`, { 'rb-wrap--stretch': stretch }]"
     role="radiogroup"
     :aria-label="label ?? 'Options'"
   >
@@ -149,8 +155,17 @@ function hideTooltip() {
       @click="select(opt.value)"
       @keydown="onKeydown"
     >
-      <svg v-if="opt.icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path :d="opt.icon" />
+      <svg
+        v-if="opt.icon"
+        :viewBox="opt.iconViewBox ?? '0 0 20 20'"
+        :fill="opt.iconFilled ? 'currentColor' : 'none'"
+        :stroke="opt.iconFilled ? 'none' : 'currentColor'"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path :d="opt.icon" :fill-rule="opt.iconFillRule" :clip-rule="opt.iconClipRule" />
       </svg>
       <span v-if="!opt.iconOnly">{{ opt.label }}</span>
     </button>
@@ -268,23 +283,28 @@ function hideTooltip() {
 
 /* ── Sizes ───────────────────────────────────────────────────────── */
 
-.rb-wrap--s .rb-btn            { height: var(--v9-input-s); padding: 0 var(--v9-space-s); }
+.rb-wrap--s .rb-btn            { height: var(--v9-input-s); padding: 0 var(--v9-space-s); gap: var(--v9-space-xxs); }
 .rb-wrap--s .rb-btn--icon-only { width: var(--v9-input-s); padding: 0; }
 .rb-wrap--s .rb-btn svg        { width: var(--v9-icon-s); height: var(--v9-icon-s); }
 .rb-wrap--s .rb-label          { padding: 0 var(--v9-space-xs); }
 .rb-wrap--s .rb-ib             { width: var(--v9-input-s); height: var(--v9-input-s); padding: var(--v9-space-adj-m); }
 .rb-wrap--s .rb-ib svg         { width: var(--v9-icon-s); height: var(--v9-icon-s); }
 
-.rb-wrap--m .rb-btn            { height: var(--v9-input-m); padding: 0 var(--v9-space-m); }
+.rb-wrap--m .rb-btn            { height: var(--v9-input-m); padding: 0 var(--v9-space-m); gap: var(--v9-space-xs); }
 .rb-wrap--m .rb-btn--icon-only { width: var(--v9-input-m); padding: 0; }
 .rb-wrap--m .rb-btn svg        { width: var(--v9-icon-m); height: var(--v9-icon-m); }
 .rb-wrap--m .rb-label          { padding: 0 var(--v9-space-xs); }
 .rb-wrap--m .rb-ib             { width: var(--v9-input-m); height: var(--v9-input-m); padding: var(--v9-space-xs); }
 .rb-wrap--m .rb-ib svg         { width: var(--v9-icon-m); height: var(--v9-icon-m); }
 
-.rb-wrap--l .rb-btn            { height: var(--v9-input-l); padding: 0 var(--v9-space-l); }
+.rb-wrap--l .rb-btn            { height: var(--v9-input-l); padding: 0 var(--v9-space-l); gap: var(--v9-space-xs); }
 .rb-wrap--l .rb-btn--icon-only { width: var(--v9-input-l); padding: 0; }
 .rb-wrap--l .rb-btn svg        { width: var(--v9-icon-m); height: var(--v9-icon-m); }
+
+/* ── Stretch (full-width, equal buttons) ─────────────────────────── */
+
+.rb-wrap--stretch              { width: 100%; }
+.rb-wrap--stretch .rb-btn      { flex: 1; }
 
 /* ── Icon button wrapper ─────────────────────────────────────────── */
 
