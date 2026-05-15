@@ -446,7 +446,7 @@ defineExpose({ handleApply })
   outline: none;
 }
 .afb-group-remove:hover { background: #e5e7eb; color: #374151; }
-.afb-group-remove:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+.afb-group-remove:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 1px; }
 .afb-group-remove svg { width: 14px; height: 14px; }
 
 /* ── Conditions ───────────────────────────────────────────────────────────── */
@@ -491,8 +491,8 @@ defineExpose({ handleApply })
 }
 .afb-select:focus,
 .afb-input:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+  border-color: var(--v9-ui-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 12%, transparent);
 }
 .afb-select:disabled,
 .afb-input:disabled {
@@ -517,7 +517,7 @@ defineExpose({ handleApply })
   outline: none;
 }
 .afb-cond-remove:hover { background: #fee2e2; color: #ef4444; }
-.afb-cond-remove:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+.afb-cond-remove:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 1px; }
 .afb-cond-remove svg { width: 14px; height: 14px; }
 
 /* ── Within-group operator badge ──────────────────────────────────────────── */
@@ -547,7 +547,7 @@ defineExpose({ handleApply })
   color: #374151;
 }
 .afb-op-badge:focus-visible {
-  outline: 2px solid #7c3aed;
+  outline: 2px solid var(--v9-ui-focus);
   outline-offset: 2px;
 }
 
@@ -560,14 +560,14 @@ defineExpose({ handleApply })
   border: none;
   background: transparent;
   font-size: 13px;
-  color: #7c3aed;
+  color: var(--v9-ui-focus);
   cursor: pointer;
   border-radius: 5px;
   outline: none;
   margin-top: 2px;
 }
 .afb-add-cond:hover { background: #f5f3ff; }
-.afb-add-cond:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+.afb-add-cond:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 1px; }
 .afb-add-cond svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* ── Between-group operator ───────────────────────────────────────────────── */
@@ -591,8 +591,8 @@ defineExpose({ handleApply })
 }
 .afb-op-badge--group:hover {
   background: #f4f3f7;
-  border-color: #7c3aed;
-  color: #7c3aed;
+  border-color: var(--v9-ui-focus);
+  color: var(--v9-ui-focus);
 }
 
 /* ── Add group ────────────────────────────────────────────────────────────── */
@@ -612,11 +612,11 @@ defineExpose({ handleApply })
   transition: border-color 0.1s, color 0.1s, background 0.1s;
 }
 .afb-add-group:hover {
-  border-color: #7c3aed;
-  color: #7c3aed;
+  border-color: var(--v9-ui-focus);
+  color: var(--v9-ui-focus);
   background: #faf5ff;
 }
-.afb-add-group:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }
+.afb-add-group:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 2px; }
 .afb-add-group svg { width: 15px; height: 15px; flex-shrink: 0; }
 
 </style>

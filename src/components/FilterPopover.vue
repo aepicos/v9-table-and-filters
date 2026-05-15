@@ -974,7 +974,7 @@ function handleValueKeydown(e: KeyboardEvent) {
 .fp-adv-icon {
   width: 16px;
   height: 16px;
-  color: #7c3aed;
+  color: var(--v9-ui-focus);
   flex-shrink: 0;
 }
 
@@ -1137,12 +1137,12 @@ function handleValueKeydown(e: KeyboardEvent) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #7c3aed;
+  color: var(--v9-ui-focus);
 }
 .fp-nlp-icon {
   width: 14px;
   height: 14px;
-  color: #7c3aed;
+  color: var(--v9-ui-focus);
 }
 .fp-nlp-chips {
   display: flex;
@@ -1160,8 +1160,8 @@ function handleValueKeydown(e: KeyboardEvent) {
   color: #4c1d95;
 }
 .fp-nlp-chip--pending {
-  background: #7c3aed;
-  border-color: #7c3aed;
+  background: var(--v9-ui-focus);
+  border-color: var(--v9-ui-focus);
   color: #fff;
 }
 .fp-nlp-chip-remove {
@@ -1183,7 +1183,7 @@ function handleValueKeydown(e: KeyboardEvent) {
 .fp-nlp-apply {
   align-self: flex-start;
   padding: 4px 12px;
-  background: #7c3aed;
+  background: var(--v9-ui-focus);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -1192,7 +1192,7 @@ function handleValueKeydown(e: KeyboardEvent) {
   cursor: pointer;
 }
 .fp-nlp-apply:hover {
-  background: #6d28d9;
+  filter: brightness(0.88);
 }
 
 .fp-groups {
@@ -1296,7 +1296,7 @@ function handleValueKeydown(e: KeyboardEvent) {
   padding: 4px 0;
 }
 .value-item--custom {
-  color: #7c3aed;
+  color: var(--v9-ui-focus);
   font-style: italic;
 }
 
@@ -1350,8 +1350,8 @@ function handleValueKeydown(e: KeyboardEvent) {
   width: 56px;
 }
 .fp-op-select:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+  border-color: var(--v9-ui-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 15%, transparent);
 }
 
 .fp-vs-input {
@@ -1364,8 +1364,8 @@ function handleValueKeydown(e: KeyboardEvent) {
   min-width: 0;
 }
 .fp-vs-input:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+  border-color: var(--v9-ui-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 15%, transparent);
 }
 .fp-vs-submit {
   padding: 6px 14px;
@@ -1407,11 +1407,11 @@ function handleValueKeydown(e: KeyboardEvent) {
   outline: none;
   line-height: 1.4;
 }
-.fp-adv-btn:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }
+.fp-adv-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 2px; }
 .fp-adv-btn--cancel { background: #fff; border-color: #d1d5db; color: #374151; }
 .fp-adv-btn--cancel:hover { background: #f9fafb; }
-.fp-adv-btn--apply { background: #7c3aed; color: #fff; border-color: #7c3aed; }
-.fp-adv-btn--apply:hover { background: #6d28d9; }
+.fp-adv-btn--apply { background: var(--v9-ui-focus); color: #fff; border-color: var(--v9-ui-focus); }
+.fp-adv-btn--apply:hover { filter: brightness(0.88); }
 
 /* ── Footer ───────────────────────── */
 .fp-footer {
@@ -1435,5 +1435,5 @@ function handleValueKeydown(e: KeyboardEvent) {
   outline: none;
 }
 .fp-advanced:hover { background: #f4f3f7; color: #374151; }
-.fp-advanced:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+.fp-advanced:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 1px; }
 </style>
