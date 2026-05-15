@@ -1511,10 +1511,16 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   <button
                     v-else-if="col.id === 'actions'"
                     class="at-row-action-btn"
-                    :aria-label="`More actions for ${item.name}`"
+                    aria-label="Options"
                     @click.stop
+                    @mouseenter="showActionTooltip"
+                    @mouseleave="hideActionTooltip"
+                    @focus="showActionTooltip"
+                    @blur="hideActionTooltip"
                   >
-                    ⋯
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                    </svg>
                   </button>
                 </div>
               </template>
