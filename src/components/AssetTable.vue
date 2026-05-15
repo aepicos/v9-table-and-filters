@@ -680,11 +680,6 @@ const groupCheckboxStates = computed<Map<string, false | 'indeterminate' | 'grou
   return map
 })
 
-const selectedCount = computed((): number => {
-  if (selMode.value === 'none') return 0
-  if (selMode.value === 'all') return filteredDataset.value.length - selExcluded.value.size
-  return selIncluded.value.size
-})
 
 
 const headerCbAllChecked = computed(() => selMode.value === 'all' && selExcluded.value.size === 0)
