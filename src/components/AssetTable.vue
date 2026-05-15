@@ -5,6 +5,8 @@ import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } fr
 import { assetPath } from '../data/assets'
 import RadioBar from './RadioBar.vue'
 import Badge from './Badge.vue'
+import Checkbox from './Checkbox.vue'
+import ParentCheckbox from './ParentCheckbox.vue'
 import AssetDrawer from './AssetDrawer.vue'
 import SortPopover from './SortPopover.vue'
 import type { SortColDef } from './SortPopover.vue'
@@ -381,7 +383,6 @@ const loadStatus = ref('')
 // Refs
 const scrollWrapperRef = ref<HTMLDivElement | null>(null)
 const sentinelRef = ref<HTMLDivElement | null>(null)
-const headerCheckboxRef = ref<HTMLInputElement | null>(null)
 
 // AbortController for inflight requests
 let abortCtrl: AbortController | null = null
@@ -654,19 +655,35 @@ function isSelected(id: string): boolean {
   return selIncluded.value.has(id)
 }
 
+// Computed map of groupId → checkbox state so Vue explicitly tracks
+// selMode / selIncluded / selExcluded as dependencies. A plain function
+// called from the template can miss re-evaluation when selection changes
+// while groups are first loading (async boundary in loadGroupMeta).
+const groupCheckboxStates = computed<Map<string, false | 'indeterminate' | 'group-checked'>>(() => {
+  const map = new Map<string, false | 'indeterminate' | 'group-checked'>();
+  if (!groupBy.value) return map
+  const gBy = groupBy.value
+  for (const group of groups.value) {
+    const items = sortedFilteredDataset.value.filter(
+      (item) => String((item as unknown as Record<string, unknown>)[gBy]) === group.id
+    )
+    if (items.length === 0) {
+      map.set(group.id, false)
+    } else if (items.every((i) => isSelected(i.id))) {
+      map.set(group.id, 'group-checked')
+    } else if (items.some((i) => isSelected(i.id))) {
+      map.set(group.id, 'indeterminate')
+    } else {
+      map.set(group.id, false)
+    }
+  }
+  return map
+})
+
 const selectedCount = computed((): number => {
   if (selMode.value === 'none') return 0
   if (selMode.value === 'all') return filteredDataset.value.length - selExcluded.value.size
   return selIncluded.value.size
-})
-
-const selectionDesc = computed((): string => {
-  if (selMode.value === 'none') return '0 items selected'
-  if (selMode.value === 'all') {
-    const exc = selExcluded.value.size
-    return exc > 0 ? `All items selected (${exc} excluded)` : 'All items in this view selected'
-  }
-  return `${selIncluded.value.size} items selected`
 })
 
 const hasSelection = computed(() => selectedCount.value > 0)
@@ -704,28 +721,36 @@ function deselectAll() {
 
 function toggleGroupItems(groupId: string) {
   const group = groups.value.find((g) => g.id === groupId)
-  if (!group || group.items.length === 0) return
-  const allSel = group.items.every((item) => isSelected(item.id))
-  if (allSel) {
+  if (!group) return
+  // Derive the full item list from the source dataset so this works even when
+  // the group is collapsed and group.items hasn't been lazy-loaded yet.
+  const allGroupItems = sortedFilteredDataset.value.filter(
+    (item) => String((item as unknown as Record<string, unknown>)[groupBy.value!]) === groupId
+  )
+  if (allGroupItems.length === 0) return
+  // Deselect if any items are selected (covers both indeterminate and group-checked);
+  // select all only when the group is fully unchecked.
+  const anySel = allGroupItems.some((item) => isSelected(item.id))
+  if (anySel) {
     if (selMode.value === 'all') {
       const next = new Set(selExcluded.value)
-      group.items.forEach((item) => next.add(item.id))
+      allGroupItems.forEach((item) => next.add(item.id))
       selExcluded.value = next
     } else {
       const next = new Set(selIncluded.value)
-      group.items.forEach((item) => next.delete(item.id))
+      allGroupItems.forEach((item) => next.delete(item.id))
       if (next.size === 0) selMode.value = 'none'
       selIncluded.value = next
     }
   } else {
     if (selMode.value === 'all') {
       const next = new Set(selExcluded.value)
-      group.items.forEach((item) => next.delete(item.id))
+      allGroupItems.forEach((item) => next.delete(item.id))
       selExcluded.value = next
     } else {
       selMode.value = 'some'
       const next = new Set(selIncluded.value)
-      group.items.forEach((item) => next.add(item.id))
+      allGroupItems.forEach((item) => next.add(item.id))
       selIncluded.value = next
     }
   }
@@ -921,16 +946,6 @@ function cleanupGroupObservers() {
   groupObservers.forEach((obs) => obs.disconnect())
   groupObservers.clear()
 }
-
-/* ============================================================
-   HEADER CHECKBOX INDETERMINATE
-   ============================================================ */
-
-watch(headerCbIndeterminate, (val) => {
-  if (headerCheckboxRef.value) {
-    headerCheckboxRef.value.indeterminate = val
-  }
-})
 
 /* ============================================================
    SCROLL HANDLER
@@ -1160,14 +1175,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
       </div>
     </div>
 
-    <!-- Selection bar -->
-    <div v-if="hasSelection" class="at-selection-bar" role="status">
-      <span class="at-selection-bar__count">{{ selectionDesc }}</span>
-      <button v-if="selMode !== 'all'" class="at-selection-bar__link" @click="selectAll">
-        Select all {{ filteredDataset.length.toLocaleString() }}
-      </button>
-      <button class="at-selection-bar__link" @click="deselectAll">Deselect all</button>
-    </div>
+    <!-- Selection bar removed — bulk action popover will replace it -->
 
     <!-- Scroll wrapper -->
     <div
@@ -1197,13 +1205,10 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                 class="at-cell"
                 :aria-colindex="colIndex + 1"
               >
-                <input
-                  ref="headerCheckboxRef"
-                  type="checkbox"
-                  id="at-header-checkbox"
+                <ParentCheckbox
+                  :model-value="headerCbAllChecked ? 'group-checked' : headerCbIndeterminate ? 'indeterminate' : false"
                   aria-label="Select all visible rows"
-                  :checked="headerCbAllChecked"
-                  @change="selMode === 'all' ? deselectAll() : selectAll()"
+                  @update:model-value="selMode === 'none' ? selectAll() : deselectAll()"
                 />
               </div>
               <!-- Other column headers -->
@@ -1251,21 +1256,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                 @keydown.space.prevent="toggleGroupExpand(group.id)"
               >
                 <div role="gridcell" class="at-group-header-cell">
-                  <input
-                    type="checkbox"
-                    class="at-group-checkbox"
+                  <ParentCheckbox
+                    :model-value="groupCheckboxStates.get(group.id) ?? false"
                     :aria-label="`Select all in ${group.label}`"
-                    :aria-checked="group.items.every(i => isSelected(i.id)) && group.items.length > 0 ? 'true' : group.items.some(i => isSelected(i.id)) ? 'mixed' : 'false'"
-                    :checked="group.items.length > 0 && group.items.every(i => isSelected(i.id))"
-                    @change.stop="toggleGroupItems(group.id)"
+                    @update:model-value="toggleGroupItems(group.id)"
                     @click.stop
-                    :ref="(el) => {
-                      if (el && group.items.length > 0) {
-                        const someSelected = group.items.some(i => isSelected(i.id))
-                        const allSelected = group.items.every(i => isSelected(i.id))
-                        ;(el as HTMLInputElement).indeterminate = someSelected && !allSelected
-                      }
-                    }"
                   />
                   <button
                     class="at-group-toggle"
@@ -1313,12 +1308,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   <template v-for="col in visibleCols" :key="col.id">
                     <div role="gridcell" :data-col-id="col.id" class="at-cell">
                       <!-- select -->
-                      <input
+                      <Checkbox
                         v-if="col.id === 'select'"
-                        type="checkbox"
+                        :model-value="isSelected(item.id)"
                         :aria-label="`Select ${item.name}`"
-                        :checked="isSelected(item.id)"
-                        @change.stop="toggleItem(item.id)"
+                        @update:model-value="toggleItem(item.id)"
                         @click.stop
                       />
                       <!-- name -->
@@ -1440,12 +1434,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
             >
               <template v-for="col in visibleCols" :key="col.id">
                 <div role="gridcell" :data-col-id="col.id" class="at-cell">
-                  <input
+                  <Checkbox
                     v-if="col.id === 'select'"
-                    type="checkbox"
+                    :model-value="isSelected(item.id)"
                     :aria-label="`Select ${item.name}`"
-                    :checked="isSelected(item.id)"
-                    @change.stop="toggleItem(item.id)"
+                    @update:model-value="toggleItem(item.id)"
                     @click.stop
                   />
                   <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
