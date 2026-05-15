@@ -3,7 +3,6 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
 import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
 import { assetPath } from '../data/assets'
-import RadioBar from './RadioBar.vue'
 import Badge from './Badge.vue'
 import Checkbox from './Checkbox.vue'
 import ParentCheckbox from './ParentCheckbox.vue'
@@ -376,7 +375,7 @@ const flatLoading = ref(false)
 const groups = ref<GroupState[]>([])
 
 // UI state
-const colPanelOpen = ref(false)
+const tableOptionsOpen = ref(false)
 const scrolledX = ref(false)
 const loadStatus = ref('')
 
@@ -955,8 +954,8 @@ function onScroll() {
 
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as HTMLElement
-  if (!target.closest('.at-toolbar-item')) {
-    colPanelOpen.value = false
+  if (!target.closest('.at-table-options')) {
+    tableOptionsOpen.value = false
   }
   // Close the drawer on outside click, unless the click is inside the
   // drawer panel itself or on a table row (row click will handle navigation).
@@ -966,7 +965,7 @@ function handleClickOutside(e: MouseEvent) {
 }
 
 function handleKeyEsc(e: KeyboardEvent) {
-  if (e.key === 'Escape') colPanelOpen.value = false
+  if (e.key === 'Escape') tableOptionsOpen.value = false
 }
 
 /* ============================================================
@@ -1053,22 +1052,6 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
         </span>
       </div>
       <div class="at-table-header__actions">
-        <!-- Group by -->
-        <RadioBar
-          label="Group by:"
-          size="s"
-          :show-clear="true"
-          clear-tooltip="Clear grouping"
-          :options="[
-            { label: 'Class',       value: 'assetClass' },
-            { label: 'Team',        value: 'team' },
-            { label: 'Type',        value: 'type' },
-            { label: 'Environment', value: 'environment' },
-          ]"
-          :model-value="groupBy ?? ''"
-          @update:model-value="(v) => { groupBy = v || null }"
-        />
-
         <!-- Sort by display -->
         <button
           ref="sortBtnRef"
@@ -1095,64 +1078,107 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
           @close="sortPopoverOpen = false"
         />
 
-        <!-- Density toggle -->
-        <div class="at-density-toggle" role="group" aria-label="Row density">
+        <!-- Table options trigger -->
+        <div class="at-table-options">
           <button
-            class="at-density-btn"
-            :class="{ active: density === 'comfortable' }"
-            :aria-pressed="density === 'comfortable'"
-            title="Comfortable density"
-            @click="density = 'comfortable'"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="4" rx="1" fill="currentColor" opacity="0.7"/>
-              <rect x="1" y="8" width="14" height="4" rx="1" fill="currentColor" opacity="0.4"/>
-            </svg>
-          </button>
-          <button
-            class="at-density-btn"
-            :class="{ active: density === 'compact' }"
-            :aria-pressed="density === 'compact'"
-            title="Compact density"
-            @click="density = 'compact'"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.7"/>
-              <rect x="1" y="6" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.5"/>
-              <rect x="1" y="10" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.4"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Column toggle -->
-        <div class="at-toolbar-item">
-          <button
-            class="at-icon-btn at-icon-btn--labeled"
-            :aria-expanded="colPanelOpen"
+            class="at-icon-btn at-icon-btn--square"
+            :aria-expanded="tableOptionsOpen"
             aria-haspopup="dialog"
-            @click.stop="colPanelOpen = !colPanelOpen"
+            title="Table options"
+            @click.stop="tableOptionsOpen = !tableOptionsOpen"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="5" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/>
-              <rect x="8" y="1" width="5" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8" cy="8" r="2"/>
+              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.1 3.1l1.06 1.06M11.84 11.84l1.06 1.06M11.84 4.16l1.06-1.06M3.1 12.9l1.06-1.06"/>
             </svg>
-            Columns
           </button>
-          <div v-if="colPanelOpen" class="at-dropdown-panel" role="dialog" aria-label="Column visibility">
-            <h3 class="at-dropdown-panel__title">Columns</h3>
-            <label
-              v-for="col in columns.filter(c => !c.sticky && c.id !== 'actions')"
-              :key="col.id"
-              class="at-col-vis-item"
+
+          <!-- Options panel -->
+          <Transition name="at-opts-panel">
+            <div
+              v-if="tableOptionsOpen"
+              class="at-opts-panel"
+              role="dialog"
+              aria-label="Table options"
             >
-              <input
-                type="checkbox"
-                :checked="col.visible"
-                @change="toggleColVisibility(col.id)"
-              />
-              {{ col.label }}
-            </label>
-          </div>
+              <!-- Group by -->
+              <section class="at-opts-section">
+                <h3 class="at-opts-section__title">Group by</h3>
+                <div class="at-opts-group-btns" role="group" aria-label="Group by">
+                  <button
+                    v-for="opt in [
+                      { label: 'Class', value: 'assetClass' },
+                      { label: 'Team', value: 'team' },
+                      { label: 'Type', value: 'type' },
+                      { label: 'Environment', value: 'environment' },
+                    ]"
+                    :key="opt.value"
+                    class="at-opts-group-btn"
+                    :class="{ active: groupBy === opt.value }"
+                    :aria-pressed="groupBy === opt.value"
+                    @click="groupBy = groupBy === opt.value ? null : opt.value"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </div>
+              </section>
+
+              <div class="at-opts-divider" />
+
+              <!-- Row density -->
+              <section class="at-opts-section">
+                <h3 class="at-opts-section__title">Row density</h3>
+                <div class="at-opts-density" role="group" aria-label="Row density">
+                  <button
+                    class="at-opts-density-btn"
+                    :class="{ active: density === 'comfortable' }"
+                    :aria-pressed="density === 'comfortable'"
+                    @click="density = 'comfortable'"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <rect x="1" y="2" width="14" height="4" rx="1" fill="currentColor" opacity="0.7"/>
+                      <rect x="1" y="8" width="14" height="4" rx="1" fill="currentColor" opacity="0.4"/>
+                    </svg>
+                    Comfortable
+                  </button>
+                  <button
+                    class="at-opts-density-btn"
+                    :class="{ active: density === 'compact' }"
+                    :aria-pressed="density === 'compact'"
+                    @click="density = 'compact'"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.7"/>
+                      <rect x="1" y="6" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.5"/>
+                      <rect x="1" y="10" width="14" height="2.5" rx="1" fill="currentColor" opacity="0.4"/>
+                    </svg>
+                    Compact
+                  </button>
+                </div>
+              </section>
+
+              <div class="at-opts-divider" />
+
+              <!-- Columns -->
+              <section class="at-opts-section">
+                <h3 class="at-opts-section__title">Columns</h3>
+                <div class="at-opts-cols">
+                  <label
+                    v-for="col in columns.filter(c => !c.sticky && c.id !== 'actions')"
+                    :key="col.id"
+                    class="at-opts-col-item"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      @change="toggleColVisibility(col.id)"
+                    />
+                    {{ col.label }}
+                  </label>
+                </div>
+              </section>
+            </div>
+          </Transition>
         </div>
       </div>
     </div>
