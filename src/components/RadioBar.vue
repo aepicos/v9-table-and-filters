@@ -7,8 +7,8 @@ export interface RadioBarOption {
   icon?: string          // SVG path d attribute
   iconViewBox?: string   // defaults to "0 0 20 20"
   iconFilled?: boolean   // true = fill="currentColor", false = stroke-based
-  iconFillRule?: string  // e.g. "evenodd"
-  iconClipRule?: string  // e.g. "evenodd"
+  iconFillRule?: 'nonzero' | 'evenodd' | 'inherit'
+  iconClipRule?: 'nonzero' | 'evenodd' | 'inherit'
   iconOnly?: boolean     // hide text label; label becomes aria-label only
 }
 
