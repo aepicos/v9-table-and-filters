@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import AssetManagementPage from './components/AssetManagementPage.vue'
 
 const navItems = [
@@ -15,10 +16,30 @@ const secondaryNavItems = [
   { label: 'Dependencies', active: false },
   { label: 'Components', active: false },
 ]
+
+// ── Theme toggle ─────────────────────────────────────────────────
+const isDark = ref(false)
+const themeMenuOpen = ref(false)
+const avatarRef = ref<HTMLElement | null>(null)
+
+function setTheme(dark: boolean) {
+  isDark.value = dark
+  document.documentElement.classList.toggle('dark', dark)
+  themeMenuOpen.value = false
+}
+
+function onOutsideClick(e: MouseEvent) {
+  if (!avatarRef.value?.contains(e.target as Node)) {
+    themeMenuOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('mousedown', onOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-white" style="font-family: system-ui, -apple-system, sans-serif;">
+  <div class="flex h-screen overflow-hidden" style="background: var(--v9-ui-bg); font-family: system-ui, -apple-system, sans-serif;">
     <!-- Nav wrapper: primary + secondary as a single floating panel -->
     <div
       class="flex shrink-0"
@@ -47,12 +68,12 @@ const secondaryNavItems = [
         >
           <div
             class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors"
-            :style="item.active ? 'border: 1px solid #e5e7eb; background: #fff;' : ''"
+            :style="item.active ? 'border: 1px solid var(--v9-ui-border); background: var(--v9-ui-bg);' : ''"
           >
             <svg
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
               class="w-5 h-5"
-              :style="item.active ? 'color: #111827;' : 'color: #9ca3af;'"
+              :style="item.active ? 'color: var(--v9-ui-text);' : 'color: var(--v9-ui-icon);'"
             >
               <template v-if="item.label === 'Analytics'">
                 <rect x="3" y="10" width="4" height="10" rx="1" />
@@ -81,20 +102,20 @@ const secondaryNavItems = [
           </div>
           <span
             class="text-[11px] font-medium leading-none"
-            :style="item.active ? 'color: #111827;' : 'color: #9ca3af;'"
+            :style="item.active ? 'color: var(--v9-ui-text);' : 'color: var(--v9-ui-icon);'"
           >{{ item.label }}</span>
         </button>
       </nav>
 
       <!-- Bottom icons -->
       <div class="flex flex-col items-center gap-1 pb-4 px-2 w-full">
-        <button title="Settings" class="w-9 h-9 flex items-center justify-center rounded-lg" style="color: #9ca3af;">
+        <button title="Settings" class="w-9 h-9 flex items-center justify-center rounded-lg" style="color: var(--v9-ui-icon);">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
             <circle cx="12" cy="12" r="3" />
             <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
           </svg>
         </button>
-        <button title="Help" class="w-9 h-9 flex items-center justify-center rounded-lg" style="color: #9ca3af;">
+        <button title="Help" class="w-9 h-9 flex items-center justify-center rounded-lg" style="color: var(--v9-ui-icon);">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
             <circle cx="12" cy="12" r="10" />
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
@@ -119,8 +140,8 @@ const secondaryNavItems = [
           :key="item.label"
           class="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-md text-sm text-left"
           :style="item.active
-            ? 'background: #f3f4f6; font-weight: 500; color: #111827;'
-            : 'color: #6b7280;'"
+            ? 'background: var(--v9-ui-hover); font-weight: 500; color: var(--v9-ui-text);'
+            : 'color: var(--v9-ui-dimmed);'"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 shrink-0">
             <template v-if="item.label === 'Coverage'">
@@ -147,7 +168,7 @@ const secondaryNavItems = [
             v-if="item.active"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
             class="w-3.5 h-3.5 ml-auto"
-            style="color: #9ca3af;"
+            style="color: var(--v9-ui-icon);"
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
@@ -161,13 +182,13 @@ const secondaryNavItems = [
     <div class="flex flex-col flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
       <!-- Scope selector bar -->
       <div
-        class="flex items-center justify-between px-4 bg-white border-b shrink-0"
-        style="height: 56px; border-color: #e5e7eb;"
+        class="flex items-center justify-between px-4 border-b shrink-0"
+        style="height: 56px; background: var(--v9-ui-bg); border-color: var(--v9-ui-border);"
       >
         <div class="flex items-center gap-1">
           <button
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
-            style="background: #f3f4f6; color: #111827;"
+            style="background: var(--v9-ui-hover); color: var(--v9-ui-text);"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -175,16 +196,16 @@ const secondaryNavItems = [
             </svg>
             Snyk
           </button>
-          <span style="color: #9ca3af; margin: 0 4px;">/</span>
-          <button class="flex items-center gap-1.5 px-2 py-1.5 text-sm" style="color: #6b7280;">
+          <span style="color: var(--v9-ui-icon); margin: 0 4px;">/</span>
+          <button class="flex items-center gap-1.5 px-2 py-1.5 text-sm" style="color: var(--v9-ui-dimmed);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4">
               <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
               <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
             </svg>
             All groups
           </button>
-          <span style="color: #9ca3af; margin: 0 4px;">/</span>
-          <button class="flex items-center gap-1.5 px-2 py-1.5 text-sm" style="color: #6b7280;">
+          <span style="color: var(--v9-ui-icon); margin: 0 4px;">/</span>
+          <button class="flex items-center gap-1.5 px-2 py-1.5 text-sm" style="color: var(--v9-ui-dimmed);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
@@ -195,22 +216,65 @@ const secondaryNavItems = [
           </button>
         </div>
         <div class="flex items-center gap-1">
-          <button class="w-9 h-9 flex items-center justify-center" style="color: #6b7280;">
+          <button class="w-9 h-9 flex items-center justify-center" style="color: var(--v9-ui-dimmed);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
           </button>
-          <button class="w-9 h-9 flex items-center justify-center" style="color: #6b7280;">
+          <button class="w-9 h-9 flex items-center justify-center" style="color: var(--v9-ui-dimmed);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </button>
-          <div
-            class="w-8 h-8 rounded-full flex items-center justify-center ml-1"
-            style="background: #6366f1;"
-          >
-            <span style="color: white; font-size: 12px; font-weight: 600;">JB</span>
+          <div ref="avatarRef" style="position: relative; margin-left: 4px;">
+            <button
+              class="w-8 h-8 rounded-full flex items-center justify-center"
+              style="background: #6366f1; border: none; cursor: pointer;"
+              :aria-expanded="themeMenuOpen"
+              aria-haspopup="menu"
+              aria-label="Account menu"
+              @click="themeMenuOpen = !themeMenuOpen"
+            >
+              <span style="color: white; font-size: 12px; font-weight: 600;">AA</span>
+            </button>
+
+            <div
+              v-if="themeMenuOpen"
+              role="menu"
+              style="
+                position: absolute; top: calc(100% + 6px); right: 0;
+                background: var(--v9-input-bg); border: 1px solid var(--v9-ui-border);
+                border-radius: var(--v9-radius-m);
+                box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+                padding: var(--v9-space-xxs); min-width: 140px; z-index: 400;
+                font-family: var(--v9-font);
+              "
+            >
+              <div style="padding: 4px 10px 6px; font-size: 11px; font-weight: 600; color: var(--v9-ui-dimmed); text-transform: uppercase; letter-spacing: 0.06em;">Theme</div>
+              <button
+                v-for="opt in [{ label: '☀️  Light', dark: false }, { label: '🌙  Dark', dark: true }]"
+                :key="opt.label"
+                role="menuitemradio"
+                :aria-checked="isDark === opt.dark"
+                @click="setTheme(opt.dark)"
+                style="
+                  display: flex; align-items: center; justify-content: space-between;
+                  width: 100%; padding: 5px 10px; border: none; border-radius: var(--v9-radius-s);
+                  background: none; cursor: pointer; text-align: left;
+                  font-family: var(--v9-font); font-size: var(--v9-font-size-m);
+                  color: var(--v9-ui-text);
+                "
+                :style="isDark === opt.dark ? 'background: var(--v9-ui-hover); font-weight: 600;' : ''"
+                @mouseenter="($event.currentTarget as HTMLElement).style.background = 'var(--v9-ui-hover)'"
+                @mouseleave="($event.currentTarget as HTMLElement).style.background = isDark === opt.dark ? 'var(--v9-ui-hover)' : ''"
+              >
+                {{ opt.label }}
+                <svg v-if="isDark === opt.dark" viewBox="0 0 16 16" fill="currentColor" style="width: 12px; height: 12px; color: var(--v9-ui-selected); flex-shrink: 0;">
+                  <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -500,6 +500,23 @@ const sortedFlatItems = computed<AssetItem[]>(() => {
   })
 })
 
+// Sorted full dataset — used as the source for group item pagination
+const sortedFilteredDataset = computed<AssetItem[]>(() => {
+  if (!sortCol.value) return filteredDataset.value
+  const col = sortCol.value
+  return [...filteredDataset.value].sort((a, b) => {
+    let cmp = 0
+    if (col === 'riskScore') {
+      cmp = a.riskScore - b.riskScore
+    } else {
+      const aVal = String((a as unknown as Record<string, unknown>)[col] ?? '')
+      const bVal = String((b as unknown as Record<string, unknown>)[col] ?? '')
+      cmp = aVal.localeCompare(bVal)
+    }
+    return sortDir.value === 'asc' ? cmp : -cmp
+  })
+})
+
 const sortLabel = computed(() => columns.value.find(c => c.id === sortCol.value)?.label ?? '')
 const sortArrow = computed(() => {
   const col = columns.value.find(c => c.id === sortCol.value)
@@ -778,7 +795,7 @@ async function loadGroupItems(groupId: string) {
   groups.value = groups.value.map((g) => g.id === groupId ? { ...g, loading: true } : g)
 
   try {
-    const result = await fetchGroupPage(filteredDataset.value, groupId, groupBy.value!, group.cursor)
+    const result = await fetchGroupPage(sortedFilteredDataset.value, groupId, groupBy.value!, group.cursor)
     groups.value = groups.value.map((g) => {
       if (g.id !== groupId) return g
       return { ...g, items: [...g.items, ...result.items], cursor: result.nextCursor, hasMore: result.hasMore, loading: false }
@@ -825,6 +842,14 @@ watch(() => props.search, resetAndReload)
 watch(() => props.filters, resetAndReload, { deep: true })
 watch(() => props.advancedQuery, resetAndReload, { deep: true })
 watch(() => groupBy.value, resetAndReload)
+
+// When sort changes in grouped mode, reset each group's items and reload expanded ones
+watch([sortCol, sortDir], () => {
+  if (!groupBy.value) return
+  const expandedIds = groups.value.filter(g => g.expanded).map(g => g.id)
+  groups.value = groups.value.map(g => ({ ...g, items: [], cursor: 0, hasMore: true, loading: false }))
+  for (const id of expandedIds) loadGroupItems(id)
+})
 
 /* ============================================================
    MAIN INTERSECTION OBSERVER (flat mode sentinel)

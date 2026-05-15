@@ -38,7 +38,7 @@ const METRICS: Metric[] = [
         <div class="text-xs font-medium" style="color: var(--v9-ui-dimmed);">{{ metric.label }}</div>
         <div
           class="text-xs font-medium mt-0.5"
-          :style="metric.deltaPositive === true ? 'color: #15803d;' : metric.deltaPositive === false ? 'color: #dc2626;' : `color: var(--v9-ui-dimmed);`"
+          :style="metric.deltaPositive === true ? 'color: var(--v9-success-main);' : metric.deltaPositive === false ? 'color: var(--v9-danger-main);' : `color: var(--v9-ui-dimmed);`"
         >{{ metric.delta }}</div>
       </div>
     </div>

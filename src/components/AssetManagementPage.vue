@@ -56,16 +56,16 @@ function clearAdvanced() {
     <!-- Page header -->
     <div
       class="flex items-center justify-between px-6 border-b shrink-0"
-      style="height: 56px; background: #fff; border-color: #e5e7eb;"
+      style="height: 56px; background: var(--v9-ui-bg); border-color: var(--v9-ui-border);"
     >
       <div class="flex items-center gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5" style="color: #6b7280;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5" style="color: var(--v9-ui-icon);">
           <rect x="3" y="3" width="7" height="7" rx="1" />
           <rect x="14" y="3" width="7" height="7" rx="1" />
           <rect x="3" y="14" width="7" height="7" rx="1" />
           <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
-        <h1 class="text-sm font-semibold" style="color: #111827; margin: 0;">Asset Management</h1>
+        <h1 class="text-sm font-semibold" style="color: var(--v9-ui-text); margin: 0;">Asset Management</h1>
       </div>
 
     </div>
@@ -73,7 +73,7 @@ function clearAdvanced() {
     <!-- Tabs -->
     <div
       class="flex items-center gap-0 px-6 border-b shrink-0"
-      style="background: #fff; border-color: #e5e7eb;"
+      style="background: var(--v9-ui-bg); border-color: var(--v9-ui-border);"
     >
       <button
         v-for="tab in TABS"
@@ -81,8 +81,8 @@ function clearAdvanced() {
         @click="activeTab = tab"
         class="px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
         :style="activeTab === tab
-          ? 'border-color: #111827; color: #111827;'
-          : 'border-color: transparent; color: #6b7280;'"
+          ? 'border-color: var(--v9-ui-text); color: var(--v9-ui-text);'
+          : 'border-color: transparent; color: var(--v9-ui-dimmed);'"
       >
         {{ tab }}
       </button>
