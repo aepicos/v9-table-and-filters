@@ -47,6 +47,7 @@ interface ColDef {
   sticky: boolean
   visible: boolean
   sortable: boolean
+  defaultDesc?: boolean
 }
 
 const INITIAL_COLUMNS: ColDef[] = [
@@ -55,7 +56,7 @@ const INITIAL_COLUMNS: ColDef[] = [
   { id: 'type',        label: 'Type',        width: 140, sticky: false, visible: true,  sortable: true  },
   { id: 'assetClass',  label: 'Class',       width: 80,  sticky: false, visible: true,  sortable: true  },
   { id: 'issueCounts', label: 'Issues',      width: 200, sticky: false, visible: true,  sortable: false },
-  { id: 'riskScore',   label: 'Risk score',       width: 100, sticky: false, visible: true,  sortable: true  },
+  { id: 'riskScore',   label: 'Risk score',  width: 100, sticky: false, visible: true,  sortable: true,  defaultDesc: true },
   { id: 'coverage',    label: 'Coverage',    width: 180, sticky: false, visible: true,  sortable: false },
   { id: 'team',        label: 'Team',        width: 200, sticky: false, visible: true,  sortable: true  },
   { id: 'language',    label: 'Language',    width: 110, sticky: false, visible: false, sortable: true  },
@@ -500,17 +501,22 @@ const sortedFlatItems = computed<AssetItem[]>(() => {
 })
 
 const sortLabel = computed(() => columns.value.find(c => c.id === sortCol.value)?.label ?? '')
-const sortArrow = computed(() => sortDir.value === 'asc' ? '↓' : '↑')
+const sortArrow = computed(() => {
+  const col = columns.value.find(c => c.id === sortCol.value)
+  const showDown = col?.defaultDesc ? sortDir.value === 'desc' : sortDir.value === 'asc'
+  return showDown ? '↓' : '↑'
+})
 
 const sortableColumns = computed<SortColDef[]>(() =>
-  columns.value.filter(c => c.sortable && c.id !== 'select').map(c => ({ id: c.id, label: c.label }))
+  columns.value.filter(c => c.sortable && c.id !== 'select').map(c => ({ id: c.id, label: c.label, defaultDesc: c.defaultDesc }))
 )
 
 const sortDisplayText = computed(() => {
   const assetPart = `${sortLabel.value} ${sortArrow.value}`
   if (groupBy.value && groupSortCol.value !== 'follow') {
     const groupLabel = groupSortCol.value === 'name' ? 'Name' : 'Risk score'
-    const groupArrow = groupSortDir.value === 'asc' ? '↓' : '↑'
+    const groupIsDefaultDesc = groupSortCol.value === 'riskScore'
+    const groupArrow = (groupIsDefaultDesc ? groupSortDir.value === 'desc' : groupSortDir.value === 'asc') ? '↓' : '↑'
     return `${groupLabel} ${groupArrow} › ${assetPart}`
   }
   return assetPart
@@ -703,7 +709,6 @@ function handleSort(colId: ColId) {
 function setSort(col: string, dir: SortDir) {
   sortCol.value = col as ColId
   sortDir.value = dir
-  sortPopoverOpen.value = false
 }
 
 function setGroupSort(col: string, dir: SortDir) {

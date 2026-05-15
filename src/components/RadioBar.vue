@@ -33,6 +33,43 @@ function clear() {
   emit('update:modelValue', '')
 }
 
+// ── Keyboard: roving tabindex + arrow-key navigation ─────────────
+const btnRefs = ref<(HTMLButtonElement | null)[]>([])
+
+function setBtnRef(el: unknown, i: number) {
+  btnRefs.value[i] = el as HTMLButtonElement | null
+}
+
+function tabindexFor(i: number): 0 | -1 {
+  const selectedIdx = props.options.findIndex(o => o.value === props.modelValue)
+  const active = selectedIdx >= 0 ? selectedIdx : 0
+  return i === active ? 0 : -1
+}
+
+function onKeydown(e: KeyboardEvent) {
+  const btns = btnRefs.value.filter((b): b is HTMLButtonElement => b !== null)
+  const idx = btns.indexOf(e.currentTarget as HTMLButtonElement)
+  if (idx === -1) return
+
+  let next = -1
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    next = (idx + 1) % btns.length
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    next = (idx - 1 + btns.length) % btns.length
+  } else if (e.key === 'Home') {
+    next = 0
+  } else if (e.key === 'End') {
+    next = btns.length - 1
+  } else {
+    return
+  }
+
+  e.preventDefault()
+  e.stopPropagation()   // don't let parent widgets (e.g. SortPopover) also handle this
+  btns[next].focus()
+  emit('update:modelValue', props.options[next].value)
+}
+
 // Sliding indicator
 const wrapRef = ref<HTMLElement | null>(null)
 const indicatorStyle = ref<{ left: string; width: string } | null>(null)
@@ -100,14 +137,17 @@ function hideTooltip() {
 
     <!-- Option buttons -->
     <button
-      v-for="opt in options"
+      v-for="(opt, i) in options"
       :key="opt.value"
+      :ref="(el) => setBtnRef(el, i)"
       class="rb-btn"
       :class="{ 'rb-btn--selected': modelValue === opt.value, 'rb-btn--icon-only': opt.iconOnly }"
       role="radio"
       :aria-checked="modelValue === opt.value"
       :aria-label="opt.iconOnly ? opt.label : undefined"
+      :tabindex="tabindexFor(i)"
       @click="select(opt.value)"
+      @keydown="onKeydown"
     >
       <svg v-if="opt.icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path :d="opt.icon" />
