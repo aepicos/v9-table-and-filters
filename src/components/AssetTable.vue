@@ -686,7 +686,6 @@ const selectedCount = computed((): number => {
   return selIncluded.value.size
 })
 
-const hasSelection = computed(() => selectedCount.value > 0)
 
 const headerCbAllChecked = computed(() => selMode.value === 'all' && selExcluded.value.size === 0)
 const headerCbIndeterminate = computed(() => !headerCbAllChecked.value && selMode.value !== 'none')
@@ -1018,14 +1017,6 @@ watch(sentinelRef, (el) => {
    HELPERS
    ============================================================ */
 
-function scoreVariant(score: number): string {
-  if (score === 0)   return 'none'
-  if (score >= 750)  return 'critical'
-  if (score >= 500)  return 'high'
-  if (score >= 250)  return 'medium'
-  return 'low'
-}
-
 type BadgeType = 'default' | 'dimmed' | 'info' | 'success' | 'danger' | 'warning'
 
 function classBadgeType(assetClass: string): BadgeType {
@@ -1046,10 +1037,6 @@ function envBadgeType(env: string): BadgeType {
     'Development': 'info',
     'Testing':     'success',
   } as Record<string, BadgeType>)[env] ?? 'default'
-}
-
-function envClass(env: string): string {
-  return env.toLowerCase().replace(' ', '-')
 }
 
 function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefined {
