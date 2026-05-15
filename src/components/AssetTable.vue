@@ -44,11 +44,12 @@ type ColId =
 interface ColDef {
   id: ColId
   label: string
-  width: number
+  width: number        // min/fallback width in px
   sticky: boolean
   visible: boolean
   sortable: boolean
   defaultDesc?: boolean
+  autoWidth?: boolean  // if true, column uses max-content (fits its widest cell)
 }
 
 const INITIAL_COLUMNS: ColDef[] = [
@@ -63,7 +64,7 @@ const INITIAL_COLUMNS: ColDef[] = [
   { id: 'language',    label: 'Language',    width: 110, sticky: false, visible: false, sortable: true  },
   { id: 'environment', label: 'Environment', width: 110, sticky: false, visible: false, sortable: true  },
   { id: 'lastScan',    label: 'Last scan',   width: 120, sticky: false, visible: false, sortable: false },
-  { id: 'source',      label: 'Source',      width: 130, sticky: false, visible: false, sortable: false },
+  { id: 'source',      label: 'Source',      width: 130, sticky: false, visible: false, sortable: false, autoWidth: true },
   { id: 'visibility',  label: 'Visibility',  width: 100, sticky: false, visible: false, sortable: true  },
   { id: 'actions',     label: '',            width: 56,  sticky: false, visible: true,  sortable: false },
 ]
@@ -481,7 +482,9 @@ const filteredDataset = computed<AssetItem[]>(() => {
 
 const visibleCols = computed(() => columns.value.filter((c) => c.visible))
 
-const colTemplate = computed(() => visibleCols.value.map((c) => c.width + 'px').join(' '))
+const colTemplate = computed(() =>
+  visibleCols.value.map((c) => c.autoWidth ? `minmax(${c.width}px, max-content)` : c.width + 'px').join(' ')
+)
 
 const gridStyle = computed(() => ({ '--col-template': colTemplate.value }))
 

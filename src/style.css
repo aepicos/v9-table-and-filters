@@ -935,13 +935,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: var(--v9-space-xxs);
-  flex-wrap: wrap;
-  align-content: flex-start;
-}
-
-[data-col-id="source"].at-cell {
-  padding-block: var(--v9-space-xs);
-  align-items: flex-start;
+  flex-wrap: nowrap;
 }
 
 .at-tag-badge {
