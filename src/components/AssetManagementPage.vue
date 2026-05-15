@@ -52,7 +52,6 @@ function clearAdvanced() {
 <template>
   <main
     class="flex flex-col flex-1 min-h-screen overflow-y-auto overflow-x-hidden"
-    style="background: #f9fafb;"
   >
     <!-- Page header -->
     <div

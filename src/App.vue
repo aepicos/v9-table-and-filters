@@ -19,15 +19,21 @@ const secondaryNavItems = [
 
 <template>
   <div class="flex h-screen overflow-hidden bg-white" style="font-family: system-ui, -apple-system, sans-serif;">
-    <!-- Primary icon sidebar -->
+    <!-- Nav wrapper: primary + secondary as a single floating panel -->
+    <div
+      class="flex shrink-0"
+      style="margin: 8px 0 8px 8px; border: 1px solid var(--v9-ui-border-light); border-radius: var(--v9-radius-m); background: var(--v9-ui-canvas); overflow: hidden;"
+    >
+
+    <!-- Primary icon sidebar — full height -->
     <aside
-      class="flex flex-col items-center shrink-0 border-r bg-white"
-      style="width: 72px; border-color: #e5e7eb;"
+      class="flex flex-col items-center shrink-0 border-r"
+      style="width: 72px; border-color: var(--v9-ui-border-light); background: var(--v9-ui-canvas);"
       aria-label="Primary navigation"
     >
       <!-- Snyk wordmark -->
-      <div class="flex items-center justify-center w-full border-b" style="height: 56px; border-color: #e5e7eb;">
-        <span style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: #6366f1;">snyk</span>
+      <div class="flex items-center justify-center w-full" style="height: 44px;">
+        <span style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--v9-ui-dimmed);">snyk</span>
       </div>
 
       <!-- Nav items -->
@@ -98,9 +104,62 @@ const secondaryNavItems = [
       </div>
     </aside>
 
-    <!-- Right side: top nav + content -->
-    <div class="flex flex-col flex-1 min-w-0">
-      <!-- Top navigation bar -->
+    <!-- Secondary sidebar — full height -->
+    <aside
+      class="flex flex-col shrink-0 overflow-hidden"
+      style="width: 224px; background: var(--v9-ui-canvas);"
+      aria-label="Secondary navigation"
+    >
+      <!-- Spacer matching primary snyk header -->
+      <div class="shrink-0" style="height: 58px;" />
+
+      <nav class="flex flex-col gap-0.5 px-2 pt-3 pb-2">
+        <button
+          v-for="item in secondaryNavItems"
+          :key="item.label"
+          class="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-md text-sm text-left"
+          :style="item.active
+            ? 'background: #f3f4f6; font-weight: 500; color: #111827;'
+            : 'color: #6b7280;'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 shrink-0">
+            <template v-if="item.label === 'Coverage'">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </template>
+            <template v-else-if="item.label === 'Asset Management'">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </template>
+            <template v-else-if="item.label === 'Dependencies'">
+              <circle cx="18" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <path d="M13 6h3a2 2 0 0 1 2 2v7" />
+              <path d="M11 18H8a2 2 0 0 1-2-2V9" />
+            </template>
+            <template v-else>
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            </template>
+          </svg>
+          <span class="truncate">{{ item.label }}</span>
+          <svg
+            v-if="item.active"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+            class="w-3.5 h-3.5 ml-auto"
+            style="color: #9ca3af;"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </nav>
+    </aside>
+
+    </div><!-- end nav wrapper -->
+
+    <!-- Right column: scope bar + main content -->
+    <div class="flex flex-col flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+      <!-- Scope selector bar -->
       <div
         class="flex items-center justify-between px-4 bg-white border-b shrink-0"
         style="height: 56px; border-color: #e5e7eb;"
@@ -156,60 +215,9 @@ const secondaryNavItems = [
         </div>
       </div>
 
-      <!-- Content row: secondary sidebar + main -->
-      <div class="flex flex-1 overflow-hidden min-w-0">
-        <!-- Secondary sidebar -->
-        <aside
-          class="flex flex-col shrink-0 border-r bg-white overflow-hidden"
-          style="width: 224px; border-color: #e5e7eb;"
-          aria-label="Secondary navigation"
-        >
-          <nav class="flex flex-col gap-0.5 px-2 pt-3 pb-2">
-            <button
-              v-for="item in secondaryNavItems"
-              :key="item.label"
-              class="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-md text-sm text-left"
-              :style="item.active
-                ? 'background: #f3f4f6; font-weight: 500; color: #111827;'
-                : 'color: #6b7280;'"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 shrink-0">
-                <template v-if="item.label === 'Coverage'">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </template>
-                <template v-else-if="item.label === 'Asset Management'">
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
-                </template>
-                <template v-else-if="item.label === 'Dependencies'">
-                  <circle cx="18" cy="18" r="3" />
-                  <circle cx="6" cy="6" r="3" />
-                  <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-                  <path d="M11 18H8a2 2 0 0 1-2-2V9" />
-                </template>
-                <template v-else>
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                </template>
-              </svg>
-              <span class="truncate">{{ item.label }}</span>
-              <svg
-                v-if="item.active"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                class="w-3.5 h-3.5 ml-auto"
-                style="color: #9ca3af;"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-          </nav>
-        </aside>
-
-        <!-- Main content -->
-        <div class="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-          <AssetManagementPage />
-        </div>
+      <!-- Main content -->
+      <div class="flex-1 min-w-0">
+        <AssetManagementPage />
       </div>
     </div>
   </div>
