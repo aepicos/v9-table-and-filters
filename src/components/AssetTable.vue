@@ -928,6 +928,11 @@ function handleClickOutside(e: MouseEvent) {
   if (!target.closest('.at-toolbar-item')) {
     colPanelOpen.value = false
   }
+  // Close the drawer on outside click, unless the click is inside the
+  // drawer panel itself or on a table row (row click will handle navigation).
+  if (selectedAsset.value && !target.closest('.dr-panel') && !target.closest('.at-data-row')) {
+    selectedAsset.value = null
+  }
 }
 
 function handleKeyEsc(e: KeyboardEvent) {
