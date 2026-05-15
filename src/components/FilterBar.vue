@@ -410,10 +410,9 @@ const activeValuesByFilter = computed(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--v9-space-xs);
-  padding: var(--v9-space-s) var(--v9-space-m);
+  padding: 0;
   background: var(--v9-ui-bg);
-  border-bottom: 1px solid var(--v9-ui-border);
-  min-height: 48px;
+  height: fit-content;
   flex-shrink: 0;
   /* No overflow here — keeps tooltip ::after pseudo-elements unclipped */
 }

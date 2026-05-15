@@ -88,8 +88,12 @@ function clearAdvanced() {
       </button>
     </div>
 
-    <!-- Filter bar -->
-    <div>
+    <!-- Content area -->
+    <div class="flex flex-col gap-4 px-6 pt-6 pb-8 flex-1">
+      <!-- Billboard cards -->
+      <BillboardCards />
+
+      <!-- Filter bar -->
       <FilterBar
         :filters="filters"
         :advanced-query="advancedQuery"
@@ -100,13 +104,6 @@ function clearAdvanced() {
         @apply-advanced="applyAdvanced"
         @clear-advanced="clearAdvanced"
       />
-    </div>
-
-    <!-- Content area -->
-    <div class="flex flex-col gap-4 px-6 pt-6 pb-8 flex-1">
-      <!-- Billboard cards -->
-      <BillboardCards />
-
 
       <!-- Data table — sticky so it never scrolls below viewport -->
       <div
