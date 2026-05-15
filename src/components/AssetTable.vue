@@ -154,6 +154,24 @@ const getSecondaryLine = assetPath
 
 const selectedAsset = ref<AssetItem | null>(null)
 
+// Action button tooltip (shared across all rows)
+const actionTooltipVisible = ref(false)
+const actionTooltipStyle = ref({ top: '0px', left: '0px' })
+
+function showActionTooltip(e: MouseEvent | FocusEvent) {
+  const btn = e.currentTarget as HTMLElement
+  const rect = btn.getBoundingClientRect()
+  actionTooltipStyle.value = {
+    top: `${rect.top - 4}px`,
+    left: `${rect.left + rect.width / 2}px`,
+  }
+  actionTooltipVisible.value = true
+}
+
+function hideActionTooltip() {
+  actionTooltipVisible.value = false
+}
+
 // Floating active-row marker
 const markerStyle = ref<{ left: string; top: string } | null>(null)
 
@@ -1379,10 +1397,16 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                       <button
                         v-else-if="col.id === 'actions'"
                         class="at-row-action-btn"
-                        :aria-label="`More actions for ${item.name}`"
+                        aria-label="Options"
                         @click.stop
+                        @mouseenter="showActionTooltip"
+                        @mouseleave="hideActionTooltip"
+                        @focus="showActionTooltip"
+                        @blur="hideActionTooltip"
                       >
-                        ⋯
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                        </svg>
                       </button>
                     </div>
                   </template>
@@ -1531,6 +1555,15 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
     @close="selectedAsset = null"
     @navigate="selectedAsset = $event"
   />
+
+  <Teleport to="body">
+    <div
+      v-if="actionTooltipVisible"
+      class="v9-tooltip"
+      role="tooltip"
+      :style="actionTooltipStyle"
+    >Options</div>
+  </Teleport>
 
   <Teleport to="body">
     <div

@@ -972,30 +972,36 @@ html, body {
 .at-env-badge--testing     { background: var(--v9-success-bg); color: var(--v9-success-main); }
 
 /* === ROW ACTION BUTTON === */
+/* Actions cell — centred, no padding so icon aligns across all rows */
+[data-col-id="actions"].at-cell {
+  justify-content: center;
+  padding: 0;
+}
+
 .at-row-action-btn {
-  background: none;
-  border: none;
-  color: var(--at-text-2);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 1;
-  font-size: 20px;
-  letter-spacing: 0.05em;
+  width: var(--v9-input-s);   /* 24px */
+  height: var(--v9-input-s);  /* 24px */
+  padding: var(--v9-space-adj-m);
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  color: var(--v9-ui-icon);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s;
 }
 
-.at-row-action-btn:hover {
-  background: var(--at-row-hover);
-  color: var(--at-text);
+.at-row-action-btn svg {
+  width: var(--v9-icon-s);
+  height: var(--v9-icon-s);
 }
 
-.at-row-action-btn:focus-visible {
-  outline: 2px solid var(--v9-ui-focus);
-}
+.at-row-action-btn:hover  { background: var(--v9-ui-hover); }
+.at-row-action-btn:active { box-shadow: inset 0px 4px 2px -2px rgba(28,28,33,0.12); }
+.at-row-action-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -1px; }
 
 /* === SENTINEL & SPACER === */
 .at-sentinel {
@@ -1035,4 +1041,25 @@ html, body {
   height: 16px;
   cursor: pointer;
   accent-color: var(--v9-ui-focus);
+}
+
+/* ============================================================
+   SHARED TOOLTIP — teleported to body, used by icon buttons
+   ============================================================ */
+.v9-tooltip {
+  position: fixed;
+  transform: translateX(-50%) translateY(-100%);
+  width: max-content;
+  background: var(--v9-tooltip-bg);
+  color: var(--v9-tooltip-text);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  padding: var(--v9-space-xs) var(--v9-space-s);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.10), 0px 4px 6px -2px rgba(0,0,0,0.06);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
 }
