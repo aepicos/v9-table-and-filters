@@ -4,6 +4,7 @@ import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters
 import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
 import { assetPath } from '../data/assets'
 import RadioBar from './RadioBar.vue'
+import Badge from './Badge.vue'
 import AssetDrawer from './AssetDrawer.vue'
 import SortPopover from './SortPopover.vue'
 import type { SortColDef } from './SortPopover.vue'
@@ -984,6 +985,28 @@ function scoreVariant(score: number): string {
   return 'low'
 }
 
+type BadgeType = 'default' | 'dimmed' | 'info' | 'success' | 'danger' | 'warning'
+
+function classBadgeType(assetClass: string): BadgeType {
+  return ({ A: 'danger', B: 'warning', C: 'default', D: 'dimmed' } as Record<string, BadgeType>)[assetClass] ?? 'default'
+}
+
+function scoreBadgeType(score: number): BadgeType {
+  if (score === 0)   return 'dimmed'
+  if (score >= 500)  return 'danger'
+  if (score >= 250)  return 'warning'
+  return 'default'
+}
+
+function envBadgeType(env: string): BadgeType {
+  return ({
+    'Production':  'danger',
+    'Staging':     'warning',
+    'Development': 'info',
+    'Testing':     'success',
+  } as Record<string, BadgeType>)[env] ?? 'default'
+}
+
 function envClass(env: string): string {
   return env.toLowerCase().replace(' ', '-')
 }
@@ -1284,9 +1307,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                         {{ item.type }}
                       </span>
                       <!-- assetClass -->
-                      <span v-else-if="col.id === 'assetClass'" :class="`at-class-badge at-class-badge--${item.assetClass.toLowerCase()}`">
-                        {{ item.assetClass }}
-                      </span>
+                      <Badge v-else-if="col.id === 'assetClass'" :text="item.assetClass" :type="classBadgeType(item.assetClass)" />
                       <!-- issueCounts -->
                       <div v-else-if="col.id === 'issueCounts'" class="at-issue-counts">
                         <div class="at-issue-item">
@@ -1307,9 +1328,12 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                         </div>
                       </div>
                       <!-- riskScore -->
-                      <span v-else-if="col.id === 'riskScore'" :class="`at-score-badge at-score-badge--${scoreVariant(item.riskScore)}`" :aria-label="`Risk score: ${item.riskScore === 0 ? 'none' : item.riskScore}`">
-                        {{ item.riskScore === 0 ? '—' : item.riskScore }}
-                      </span>
+                      <Badge
+                        v-else-if="col.id === 'riskScore'"
+                        :text="item.riskScore === 0 ? '—' : String(item.riskScore)"
+                        :type="scoreBadgeType(item.riskScore)"
+                        :aria-label="`Risk score: ${item.riskScore === 0 ? 'none' : item.riskScore}`"
+                      />
                       <!-- coverage -->
                       <div v-else-if="col.id === 'coverage'" class="at-coverage-grid">
                         <div
@@ -1330,17 +1354,15 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                         {{ item.language }}
                       </span>
                       <!-- environment -->
-                      <span v-else-if="col.id === 'environment'" :class="`at-env-badge at-env-badge--${envClass(item.environment)}`">
-                        {{ item.environment }}
-                      </span>
+                      <Badge v-else-if="col.id === 'environment'" :text="item.environment" :type="envBadgeType(item.environment)" />
                       <!-- lastScan -->
                       <span v-else-if="col.id === 'lastScan'" style="font-size: 12px; color: var(--at-text-2);">
                         {{ item.lastScan }}
                       </span>
                       <!-- source -->
                       <div v-else-if="col.id === 'source'" class="at-tags-list">
-                        <span v-for="s in item.source.slice(0, 3)" :key="s" class="at-tag-badge">{{ s }}</span>
-                        <span v-if="item.source.length > 3" class="at-tags-overflow">+{{ item.source.length - 3 }}</span>
+                        <Badge v-for="s in item.source.slice(0, 3)" :key="s" :text="s" />
+                        <Badge v-if="item.source.length > 3" :text="`+${item.source.length - 3}`" type="dimmed" />
                       </div>
                       <!-- visibility -->
                       <span v-else-if="col.id === 'visibility'" style="font-size: 12px; color: var(--at-text-2);">
@@ -1404,9 +1426,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   <span v-else-if="col.id === 'type'" style="color: var(--at-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     {{ item.type }}
                   </span>
-                  <span v-else-if="col.id === 'assetClass'" :class="`at-class-badge at-class-badge--${item.assetClass.toLowerCase()}`">
-                    {{ item.assetClass }}
-                  </span>
+                  <Badge v-else-if="col.id === 'assetClass'" :text="item.assetClass" :type="classBadgeType(item.assetClass)" />
                   <div v-else-if="col.id === 'issueCounts'" class="at-issue-counts">
                     <div class="at-issue-item">
                       <div class="at-issue-icon at-issue-icon--critical" aria-hidden="true">C</div>
@@ -1425,9 +1445,11 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                       <span class="at-issue-count--low">{{ item.issues.low }}</span>
                     </div>
                   </div>
-                  <span v-else-if="col.id === 'riskScore'" :class="`at-score-badge at-score-badge--${scoreVariant(item.riskScore)}`">
-                    {{ item.riskScore }}
-                  </span>
+                  <Badge
+                    v-else-if="col.id === 'riskScore'"
+                    :text="item.riskScore === 0 ? '—' : String(item.riskScore)"
+                    :type="scoreBadgeType(item.riskScore)"
+                  />
                   <div v-else-if="col.id === 'coverage'" class="at-coverage-grid">
                     <div
                       v-for="cov in COVERAGE_TYPES"
@@ -1444,15 +1466,13 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   <span v-else-if="col.id === 'language'" style="color: var(--at-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     {{ item.language }}
                   </span>
-                  <span v-else-if="col.id === 'environment'" :class="`at-env-badge at-env-badge--${envClass(item.environment)}`">
-                    {{ item.environment }}
-                  </span>
+                  <Badge v-else-if="col.id === 'environment'" :text="item.environment" :type="envBadgeType(item.environment)" />
                   <span v-else-if="col.id === 'lastScan'" style="font-size: 12px; color: var(--at-text-2);">
                     {{ item.lastScan }}
                   </span>
                   <div v-else-if="col.id === 'source'" class="at-tags-list">
-                    <span v-for="s in item.source.slice(0, 3)" :key="s" class="at-tag-badge">{{ s }}</span>
-                    <span v-if="item.source.length > 3" class="at-tags-overflow">+{{ item.source.length - 3 }}</span>
+                    <Badge v-for="s in item.source.slice(0, 3)" :key="s" :text="s" />
+                    <Badge v-if="item.source.length > 3" :text="`+${item.source.length - 3}`" type="dimmed" />
                   </div>
                   <span v-else-if="col.id === 'visibility'" style="font-size: 12px; color: var(--at-text-2);">
                     {{ item.visibility }}

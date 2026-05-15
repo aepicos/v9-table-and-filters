@@ -78,12 +78,18 @@
   --v9-severity-badge-text-light:  #1C1C21;
 
   /* Semantic */
-  --v9-success-main:  #207F76;
-  --v9-success-bg:    #E9F2F1;
-  --v9-danger-main:   #D41C25;
-  --v9-info-main:     #145FED;
-  --v9-info-bg:       #E7EFFD;
-  --v9-info-border:   #D0DFFB;
+  --v9-success-main:    #207F76;
+  --v9-success-bg:      #E9F2F1;
+  --v9-success-border:  #BDD9D5;
+  --v9-danger-main:     #D41C25;
+  --v9-danger-bg:       #FEECEC;
+  --v9-danger-border:   #F9BABB;
+  --v9-warning-main:    #B85A08;
+  --v9-warning-bg:      #FEF3E9;
+  --v9-warning-border:  #F8D9B3;
+  --v9-info-main:       #145FED;
+  --v9-info-bg:         #E7EFFD;
+  --v9-info-border:     #D0DFFB;
 
   /* Elevations */
   --v9-elevation-input:       0px 1px 2px rgba(0,0,0,0.06);
@@ -118,12 +124,18 @@
   --v9-severity-low:              #8D8369;
   --v9-severity-critical-bg:      #2E0F27;
   --v9-severity-high-bg:          #2E0F0B;
-  --v9-success-main:  #26A664;
-  --v9-success-bg:    #0A2A19;
-  --v9-danger-main:   #FF555E;
-  --v9-info-main:     #00ABFF;
-  --v9-info-bg:       #002B40;
-  --v9-info-border:   #004466;
+  --v9-success-main:    #26A664;
+  --v9-success-bg:      #0A2A19;
+  --v9-success-border:  #0F4228;
+  --v9-danger-main:     #FF555E;
+  --v9-danger-bg:       #401518;
+  --v9-danger-border:   #662226;
+  --v9-warning-main:    #DC7D08;
+  --v9-warning-bg:      #3F1F02;
+  --v9-warning-border:  #583203;
+  --v9-info-main:       #00ABFF;
+  --v9-info-bg:         #002B40;
+  --v9-info-border:     #004466;
 }
 
 /* ============================================================
