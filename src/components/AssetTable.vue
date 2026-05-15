@@ -1361,8 +1361,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                       </span>
                       <!-- source -->
                       <div v-else-if="col.id === 'source'" class="at-tags-list">
-                        <Badge v-for="s in item.source.slice(0, 3)" :key="s" :text="s" />
-                        <Badge v-if="item.source.length > 3" :text="`+${item.source.length - 3}`" type="dimmed" />
+                        <Badge v-for="s in item.source" :key="s" :text="s" />
                       </div>
                       <!-- visibility -->
                       <span v-else-if="col.id === 'visibility'" style="font-size: 12px; color: var(--at-text-2);">
