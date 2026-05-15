@@ -982,9 +982,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--v9-input-s);   /* 24px */
-  height: var(--v9-input-s);  /* 24px */
-  padding: var(--v9-space-adj-m);
+  width: var(--v9-input-m);   /* 32px */
+  height: var(--v9-input-m);  /* 32px */
+  padding: var(--v9-space-xs);
   border: none;
   border-radius: var(--v9-radius-m);
   background: none;
@@ -995,8 +995,8 @@ html, body {
 }
 
 .at-row-action-btn svg {
-  width: var(--v9-icon-s);
-  height: var(--v9-icon-s);
+  width: var(--v9-icon-m);
+  height: var(--v9-icon-m);
 }
 
 .at-row-action-btn:hover  { background: var(--v9-ui-hover); }
