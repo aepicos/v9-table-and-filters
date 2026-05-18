@@ -29,7 +29,7 @@ defineProps<{
 .kpi-card {
   display: flex;
   flex-direction: column;
-  gap: var(--v9-space-s);
+  gap: var(--v9-space-xxs);
   align-items: flex-start;
   min-width: 0;
   flex: 1;

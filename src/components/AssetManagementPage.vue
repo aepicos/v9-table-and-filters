@@ -246,7 +246,7 @@ function clearAdvanced() {
       <!-- KPI billboard bar -->
       <KpiBar
         :kpis="KPI_DEFS"
-        :can-filter="true"
+        :can-filter="!advancedQuery"
         :model-value="activeKpis"
         @update:model-value="handleKpiChange"
       />
