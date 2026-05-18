@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
-import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
+import type { AssetItem as AssetItemType } from '../data/assets'
 import { assetPath } from '../data/assets'
 import { DATASET, COVERAGE_ABBREV, COVERAGE_TYPES } from '../data/mockAssets'
 import RadioBar from './RadioBar.vue'
@@ -793,7 +793,7 @@ watch(() => groupBy.value, resetAndReload)
 const displayedCount = ref(filteredDataset.value.length)
 let countRafId: number | null = null
 
-watch(() => filteredDataset.value.length, (newVal, oldVal) => {
+watch(() => filteredDataset.value.length, (newVal) => {
   if (countRafId !== null) cancelAnimationFrame(countRafId)
   const start = displayedCount.value  // animate from wherever we currently are
   const end = newVal
