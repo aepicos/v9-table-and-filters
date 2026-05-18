@@ -782,6 +782,28 @@ watch(() => props.filters, resetAndReload, { deep: true })
 watch(() => props.advancedQuery, resetAndReload, { deep: true })
 watch(() => groupBy.value, resetAndReload)
 
+// ── Animated count display ────────────────────────────────────
+const displayedCount = ref(filteredDataset.value.length)
+let countRafId: number | null = null
+
+watch(() => filteredDataset.value.length, (newVal, oldVal) => {
+  if (countRafId !== null) cancelAnimationFrame(countRafId)
+  const start = displayedCount.value  // animate from wherever we currently are
+  const end = newVal
+  const duration = 450
+  const startTime = performance.now()
+
+  function tick(now: number) {
+    const t = Math.min((now - startTime) / duration, 1)
+    const eased = 1 - Math.pow(1 - t, 3)  // easeOutCubic
+    displayedCount.value = Math.round(start + (end - start) * eased)
+    if (t < 1) countRafId = requestAnimationFrame(tick)
+    else countRafId = null
+  }
+
+  countRafId = requestAnimationFrame(tick)
+})
+
 // When sort changes in grouped mode, reset each group's items and reload expanded ones
 watch([sortCol, sortDir], () => {
   if (!groupBy.value) return
@@ -947,7 +969,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
         <span class="at-table-header__title">Assets</span>
         <span class="at-table-header__divider">|</span>
         <span class="at-table-header__count">
-          {{ filteredDataset.length.toLocaleString() }} assets
+          {{ displayedCount.toLocaleString() }} assets
         </span>
       </div>
       <div class="at-table-header__actions">
