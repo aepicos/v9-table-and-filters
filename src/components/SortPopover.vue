@@ -16,6 +16,7 @@ const props = defineProps<{
   groupSortDir: 'asc' | 'desc'
   columns: SortColDef[]
   isGrouped: boolean
+  groupLabel?: string   // e.g. "Team", "Class" — falls back to "Groups"
   triggerEl: HTMLElement | null
 }>()
 
@@ -38,9 +39,9 @@ const DIR_OPTIONS_NUMERIC: RadioBarOption[] = [
 ]
 
 const GROUP_OPTIONS = [
-  { id: 'follow',    label: 'Follow asset sorting', hasDir: false, defaultDesc: false },
-  { id: 'name',      label: 'Name',                 hasDir: true,  defaultDesc: false },
-  { id: 'riskScore', label: 'Risk score',           hasDir: true,  defaultDesc: true  },
+  { id: 'name',      label: 'Name',                   hasDir: true,  defaultDesc: false },
+  { id: 'riskScore', label: 'Risk score',             hasDir: true,  defaultDesc: true  },
+  { id: 'follow',    label: 'Same as asset sorting',  hasDir: false, defaultDesc: false },
 ]
 
 // ── Local direction state ────────────────────────────────────────
@@ -66,32 +67,35 @@ interface NavItem {
 const navItems = computed<NavItem[]>(() => {
   const items: NavItem[] = []
   if (props.isGrouped) {
-    items.push({
-      key: 'follow', hasDir: false,
-      activate: () => { emit('setGroupSort', 'follow', 'asc'); close() },
-      getDir: () => 'asc',
-      applyDir: () => {},
-      isActive: () => props.groupSortCol === 'follow',
-      dirOptions: DIR_OPTIONS_TEXT,
-    })
-    for (const opt of GROUP_OPTIONS.slice(1)) {
+    for (const opt of GROUP_OPTIONS) {
       const id = opt.id
-      const defaultDir = opt.defaultDesc ? 'desc' : 'asc'
-      const dirOptions = opt.defaultDesc ? DIR_OPTIONS_NUMERIC : DIR_OPTIONS_TEXT
-      items.push({
-        key: id, hasDir: true,
-        activate: () => {
-          emit('setGroupSort', id, localDir(id, props.groupSortCol, props.groupSortDir, defaultDir))
-          close()
-        },
-        getDir: () => localDir(id, props.groupSortCol, props.groupSortDir, defaultDir),
-        applyDir: (d) => {
-          localDirs.value = { ...localDirs.value, [id]: d }
-          emit('setGroupSort', id, d)
-        },
-        isActive: () => props.groupSortCol === id,
-        dirOptions,
-      })
+      if (!opt.hasDir) {
+        items.push({
+          key: id, hasDir: false,
+          activate: () => { emit('setGroupSort', id, 'asc'); close() },
+          getDir: () => 'asc',
+          applyDir: () => {},
+          isActive: () => props.groupSortCol === id,
+          dirOptions: DIR_OPTIONS_TEXT,
+        })
+      } else {
+        const defaultDir = opt.defaultDesc ? 'desc' : 'asc'
+        const dirOptions = opt.defaultDesc ? DIR_OPTIONS_NUMERIC : DIR_OPTIONS_TEXT
+        items.push({
+          key: id, hasDir: true,
+          activate: () => {
+            emit('setGroupSort', id, localDir(id, props.groupSortCol, props.groupSortDir, defaultDir))
+            close()
+          },
+          getDir: () => localDir(id, props.groupSortCol, props.groupSortDir, defaultDir),
+          applyDir: (d) => {
+            localDirs.value = { ...localDirs.value, [id]: d }
+            emit('setGroupSort', id, d)
+          },
+          isActive: () => props.groupSortCol === id,
+          dirOptions,
+        })
+      }
     }
   }
   for (const col of props.columns) {
@@ -253,45 +257,32 @@ function onOutside(e: MouseEvent) {
       <div :class="isGrouped ? 'sp-cols' : 'sp-single'">
 
         <!-- Group sort section -->
-        <div v-if="isGrouped" class="sp-col" role="group" aria-label="Groups">
-          <div class="sp-section-hd" aria-hidden="true">Groups</div>
+        <div v-if="isGrouped" class="sp-col" role="group" :aria-label="groupLabel ?? 'Groups'">
+          <div class="sp-section-hd" aria-hidden="true">Sort {{ groupLabel ?? 'groups' }} by…</div>
 
-          <!-- Follow asset sorting -->
-          <div :ref="(el) => setRowRef(el, 0)" class="sp-row" :class="{ 'sp-row--on': groupSortCol === 'follow' }">
-            <button
-              :ref="(el) => setNameRef(el, 0)"
-              class="sp-name"
-              :class="{ 'sp-name--on': groupSortCol === 'follow' }"
-              role="menuitemradio"
-              :aria-checked="groupSortCol === 'follow'"
-              :tabindex="focusedIdx === 0 ? 0 : -1"
-              @click="navItems[0].activate()"
-            ><em>Follow asset sorting</em></button>
-          </div>
-
-          <!-- Name + Risk score with direction -->
           <div
-            v-for="(opt, i) in GROUP_OPTIONS.slice(1)"
+            v-for="(opt, i) in GROUP_OPTIONS"
             :key="opt.id"
-            :ref="(el) => setRowRef(el, i + 1)"
+            :ref="(el) => setRowRef(el, i)"
             class="sp-row"
             :class="{ 'sp-row--on': groupSortCol === opt.id }"
           >
             <button
-              :ref="(el) => setNameRef(el, i + 1)"
+              :ref="(el) => setNameRef(el, i)"
               class="sp-name"
               :class="{ 'sp-name--on': groupSortCol === opt.id }"
               role="menuitemradio"
               :aria-checked="groupSortCol === opt.id"
-              :tabindex="focusedIdx === i + 1 ? 0 : -1"
-              @click="navItems[i + 1].activate()"
-            >{{ opt.label }}</button>
+              :tabindex="focusedIdx === i ? 0 : -1"
+              @click="navItems[i].activate()"
+            ><em v-if="!opt.hasDir">{{ opt.label }}</em><template v-else>{{ opt.label }}</template></button>
             <RadioBar
+              v-if="opt.hasDir"
               size="s"
-              :options="navItems[i + 1]?.dirOptions ?? DIR_OPTIONS_TEXT"
-              :model-value="navItems[i + 1]?.getDir() ?? 'asc'"
+              :options="navItems[i]?.dirOptions ?? DIR_OPTIONS_TEXT"
+              :model-value="navItems[i]?.getDir() ?? 'asc'"
               :aria-label="`${opt.label} sort direction`"
-              @update:model-value="(d) => navItems[i + 1]?.applyDir(d as 'asc' | 'desc')"
+              @update:model-value="(d) => navItems[i]?.applyDir(d as 'asc' | 'desc')"
             />
           </div>
         </div>
@@ -301,7 +292,7 @@ function onOutside(e: MouseEvent) {
 
         <!-- Asset column sort -->
         <div :class="isGrouped ? 'sp-col' : ''" role="group" :aria-label="isGrouped ? 'Assets' : undefined">
-          <div v-if="isGrouped" class="sp-section-hd" aria-hidden="true">Assets</div>
+          <div v-if="isGrouped" class="sp-section-hd" aria-hidden="true">Sort assets by…</div>
           <div
             v-for="(col, i) in columns"
             :key="col.id"

@@ -246,6 +246,13 @@ type SortDir = 'asc' | 'desc'
 const columns = ref<ColDef[]>(INITIAL_COLUMNS.map((c) => ({ ...c })))
 const density = ref<Density>('comfortable')
 const groupBy = ref<string | null>(null)
+const GROUP_BY_LABELS: Record<string, string> = {
+  assetClass: 'Class',
+  team: 'Team',
+  type: 'Type',
+  environment: 'Environment',
+}
+const groupByLabel = computed(() => groupBy.value ? (GROUP_BY_LABELS[groupBy.value] ?? 'Groups') : 'Groups')
 const sortCol = ref<ColId | null>('name')
 const sortDir = ref<SortDir>('asc')
 const groupSortCol = ref<string>('follow')
@@ -1009,6 +1016,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
           :group-sort-dir="groupSortDir"
           :columns="sortableColumns"
           :is-grouped="!!groupBy"
+          :group-label="groupByLabel"
           :trigger-el="sortBtnRef"
           @set-sort="(col, dir) => setSort(col, dir)"
           @set-group-sort="(col, dir) => setGroupSort(col, dir)"
