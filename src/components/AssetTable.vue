@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
 import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
 import { assetPath } from '../data/assets'
-import { DATASET, COVERAGE_ABBREV, COVERAGE_TYPES } from '../data/mockAssets'
+import { DATASET, COVERAGE_ABBREV, COVERAGE_TYPES, isAtRisk } from '../data/mockAssets'
 import RadioBar from './RadioBar.vue'
 import Badge from './Badge.vue'
 import Checkbox from './Checkbox.vue'
@@ -393,7 +393,7 @@ const filteredDataset = computed<AssetItem[]>(() => {
   // KPI billboard filter — applied on top of chips/search
   if (props.kpiFilter) {
     const kpiFn: Record<string, (item: AssetItem) => boolean> = {
-      at_risk:         (item) => item.issues.critical > 0 || item.issues.high > 0,
+      at_risk:         isAtRisk,
       class_a:         (item) => item.assetClass === 'A',
       critical_issues: (item) => item.issues.critical > 0,
       unmonitored:     (item) => item.coverage.length === 0,
