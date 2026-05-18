@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import BillboardCards from './BillboardCards.vue'
+import KpiBar from './KpiBar.vue'
+import type { KpiDef } from './KpiBar.vue'
 import AssetTable from './AssetTable.vue'
 import FilterBar from './FilterBar.vue'
 import { type FilterChip, type AdvancedQuery } from '../data/filters'
+import { DATASET_STATS } from '../data/mockAssets'
 
 const TABS = [
   'All assets',
@@ -19,6 +21,51 @@ const search = ref('')
 
 const filters = ref<FilterChip[]>([])
 const advancedQuery = ref<AdvancedQuery | null>(null)
+
+// ── KPI billboard filter ──────────────────────────────────────
+const activeKpi = ref<string | null>(null)
+
+function fmt(n: number): string {
+  return n.toLocaleString('en-US')
+}
+
+const KPI_DEFS: KpiDef[] = [
+  {
+    id: 'total',
+    label: 'Total assets',
+    value: fmt(DATASET_STATS.total),
+    delta: '+248',
+    change: 'none',
+  },
+  {
+    id: 'at_risk',
+    label: 'Assets at risk',
+    value: fmt(DATASET_STATS.atRisk),
+    delta: '+31',
+    change: 'bad',
+  },
+  {
+    id: 'class_a',
+    label: 'Class "A" assets',
+    value: fmt(DATASET_STATS.classA),
+    delta: '+12',
+    change: 'good',
+  },
+  {
+    id: 'critical_issues',
+    label: 'Assets with critical issues',
+    value: fmt(DATASET_STATS.criticalIssues),
+    delta: '-8',
+    change: 'good',
+  },
+  {
+    id: 'unmonitored',
+    label: 'Unmonitored assets',
+    value: fmt(DATASET_STATS.unmonitored),
+    delta: '-124',
+    change: 'good',
+  },
+]
 
 function removeFilter(id: string) {
   filters.value = filters.value.filter((f) => f.id !== id)
@@ -90,8 +137,12 @@ function clearAdvanced() {
 
     <!-- Content area -->
     <div class="flex flex-col gap-4 px-6 pt-6 pb-8 flex-1">
-      <!-- Billboard cards -->
-      <BillboardCards />
+      <!-- KPI billboard bar -->
+      <KpiBar
+        :kpis="KPI_DEFS"
+        :can-filter="true"
+        v-model="activeKpi"
+      />
 
       <!-- Filter bar -->
       <FilterBar
@@ -110,7 +161,12 @@ function clearAdvanced() {
         class="sticky top-0 flex flex-col"
         style="height: calc(100vh - 56px - 2rem);"
       >
-        <AssetTable :search="search" :filters="filters" :advanced-query="advancedQuery" />
+        <AssetTable
+          :search="search"
+          :filters="filters"
+          :advanced-query="advancedQuery"
+          :kpi-filter="activeKpi"
+        />
       </div>
     </div>
   </main>

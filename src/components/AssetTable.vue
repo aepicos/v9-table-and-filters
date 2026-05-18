@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
 import type { AssetItem as AssetItemType, AssetType, TeamName, LanguageName } from '../data/assets'
 import { assetPath } from '../data/assets'
+import { DATASET, COVERAGE_ABBREV, COVERAGE_TYPES } from '../data/mockAssets'
 import RadioBar from './RadioBar.vue'
 import Badge from './Badge.vue'
 import Checkbox from './Checkbox.vue'
@@ -19,6 +20,8 @@ const props = defineProps<{
   search?: string
   filters?: FilterChip[]
   advancedQuery?: AdvancedQuery | null
+  /** Which KPI cell is active — null means show all assets */
+  kpiFilter?: string | null
 }>()
 
 /* ============================================================
@@ -78,79 +81,10 @@ const INITIAL_COLUMNS: ColDef[] = [
 type AssetItem = AssetItemType
 
 /* ============================================================
-   DATA GENERATOR
+   DATA — imported from shared module
    ============================================================ */
 
-const NAMES = [
-  'auth-service','payment-api','user-service','notification-svc','reporting-api',
-  'search-svc','ml-inference','data-pipeline','config-service','gateway-api',
-  'frontend-app','admin-console','billing-svc','analytics-api','asset-manager',
-  'secret-manager','cert-rotator','log-aggregator','event-bus','scheduler-svc',
-  'cache-service','queue-worker','batch-processor','file-storage','image-resize',
-  'email-service','sms-gateway','push-notification','webhook-relay','rate-limiter',
-  'feature-flags','ab-testing','session-svc','token-service','audit-log',
-  'compliance-checker','vuln-scanner','dep-tracker','sbom-generator','policy-engine',
-  'k8s-operator','helm-chart','terraform-module','ansible-role','docker-base-img',
-  'nginx-proxy','haproxy-lb','istio-config','envoy-filter','otel-collector',
-]
-
-const TEAMS: TeamName[] = [
-  'Legendary Shack Shakers','Love and Rockets','Nouvelle Vague',
-  'Public Service Broadcasting','The Bad Seeds','Trimdon Grange Explosion',
-]
-
-const LANGUAGES: LanguageName[] = ['C#', 'Go', 'Java', 'Javascript', 'Python', 'Ruby', 'Typescript']
-const CLASS_CYCLE = ['A','B','C','C','D','B','C','D','B','C','A','C','D','B','C','D','C','B','D','C']
-const TYPES: AssetType[] = ['API','Application','Container image','Package','Repository','SBOM','Service','Website']
-const ENVS = ['Production','Staging','Development','Testing']
-const VISIBILITIES = ['Public','Private','Internal']
-const COVERAGE_TYPES = ['SCM','SAST','Secrets','DAST','Container','IaC']
-const SOURCE_TYPES = ['SCM','CLI','CI/CD','Docker','Registry','API']
-const LAST_SCAN_LABELS = [
-  'just now','15 min ago','1 hour ago','3 hours ago','6 hours ago','12 hours ago',
-  '1 day ago','2 days ago','5 days ago','8 days ago','14 days ago','21 days ago','30+ days ago',
-]
-const NAME_SUFFIXES = ['','-v2','-prod','-staging','-svc','-api','-worker','-gateway','']
-const REFERENCE_DATE = new Date('2026-04-20')
-
-const COVERAGE_ABBREV: Record<string, string> = {
-  SCM: 'SCM', SAST: 'SAT', Secrets: 'SEC', DAST: 'DST', Container: 'CTR', IaC: 'IaC',
-}
-
-const LIFECYCLE_STAGES = ['Experimental', 'Active', 'Deprecated', 'Retired']
-const FIXABILITIES = ['Fix available', 'No fix', 'Workaround']
-const EXPLOITABILITIES = ['Known exploit', 'Proof of concept', 'None']
-const ISSUE_TYPES = ['Code quality', 'License', 'Misconfiguration', 'Vulnerability']
-const LICENSES = ['Apache 2.0', 'BSD 3-Clause', 'GPL', 'LGPL', 'MIT', 'MPL 2.0', 'Unlicense']
-const LICENSE_TYPE_MAP: Record<string, string> = {
-  'Apache 2.0': 'Permissive',
-  'BSD 3-Clause': 'Permissive',
-  'MIT': 'Permissive',
-  'Unlicense': 'Permissive',
-  'MPL 2.0': 'Weak copyleft',
-  'LGPL': 'Weak copyleft',
-  'GPL': 'Strong copyleft',
-}
-const LANG_ECOSYSTEM: Record<LanguageName, string> = {
-  'Java': 'Maven', 'Javascript': 'npm', 'Typescript': 'npm',
-  'Python': 'PyPI', 'Go': 'Go', 'C#': 'NuGet', 'Ruby': 'RubyGems',
-}
-const ALL_TAGS = ['pci-dss','hipaa','gdpr','soc2','internal-tool','customer-facing','ml-model','data-processing','auth','payments','legacy','greenfield']
-
-function formatDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function getBitmaskSubset(arr: string[], bitmask: number): string[] {
-  const result: string[] = []
-  for (let j = 0; j < arr.length; j++) {
-    if (bitmask & (1 << j)) result.push(arr[j])
-  }
-  return result
-}
+// DATASET, COVERAGE_ABBREV, and all generator constants are imported above.
 
 const getSecondaryLine = assetPath
 
@@ -226,82 +160,6 @@ async function updateMarker() {
 }
 
 watch(() => selectedAsset.value?.id, updateMarker)
-
-function generateDataset(): AssetItem[] {
-  const items: AssetItem[] = []
-  for (let i = 0; i < 10473; i++) {
-    const assetClass = CLASS_CYCLE[i % CLASS_CYCLE.length]
-    let critIssues: number, highIssues: number, medIssues: number, lowIssues: number
-    if (assetClass === 'A') {
-      critIssues = (i % 5) + 8;  highIssues = (i % 7) + 10; medIssues = (i % 8) + 12; lowIssues = (i % 10) + 5
-    } else if (assetClass === 'B') {
-      critIssues = (i % 6) + 6;  highIssues = (i % 7) + 8;  medIssues = (i % 8) + 10; lowIssues = (i % 10) + 5
-    } else if (assetClass === 'C') {
-      critIssues = (i % 6) + 8;  highIssues = (i % 7) + 10; medIssues = (i % 8) + 12; lowIssues = (i % 10) + 5
-    } else {
-      critIssues = (i % 4) + 2;  highIssues = (i % 6) + 4;  medIssues = (i % 8) + 6;  lowIssues = (i % 10) + 5
-    }
-
-    const classMultiplier = assetClass === 'A' ? 4 : assetClass === 'B' ? 3 : assetClass === 'C' ? 2 : 1
-    const riskScore = Math.min(1000, (critIssues * 10 + highIssues * 7 + medIssues * 4 + lowIssues * 1) * classMultiplier)
-
-    const nameBase = NAMES[i % NAMES.length]
-    const cycle = Math.floor(i / NAMES.length)
-    const suffix = NAME_SUFFIXES[i % NAME_SUFFIXES.length]
-    const namePart = cycle > 0 ? String(cycle).padStart(2, '0') : ''
-    const name = nameBase + (namePart ? '-' + namePart : '') + suffix
-
-    const coverageMask = i % 64
-    const coverage = getBitmaskSubset(COVERAGE_TYPES, coverageMask || 1)
-    const sourceMask = (i * 7) % 64
-    const source = getBitmaskSubset(SOURCE_TYPES, sourceMask || 1)
-
-    let activityStatus: string
-    const actMod = i % 10
-    if (actMod < 7) activityStatus = 'Active'
-    else if (actMod < 9) activityStatus = 'Inactive'
-    else activityStatus = 'Stale'
-
-    const daysAgo = 10473 - i
-    const firstSeenDate = new Date(REFERENCE_DATE)
-    firstSeenDate.setDate(firstSeenDate.getDate() - daysAgo)
-
-    const lang = LANGUAGES[i % LANGUAGES.length]
-    const lic = LICENSES[i % LICENSES.length]
-    const tagMask = (i * 13) % (1 << ALL_TAGS.length)
-    const tags = ALL_TAGS.filter((_, j) => tagMask & (1 << j)).slice(0, 3)
-
-    items.push({
-      id: 'asset-' + String(i + 1).padStart(5, '0'),
-      name,
-      assetClass,
-      type: TYPES[i % TYPES.length],
-      issues: { critical: critIssues, high: highIssues, medium: medIssues, low: lowIssues },
-      riskScore,
-      coverage,
-      team: TEAMS[i % TEAMS.length],
-      language: lang,
-      source,
-      environment: ENVS[(i * 3) % ENVS.length],
-      firstSeen: formatDate(firstSeenDate),
-      lastScan: LAST_SCAN_LABELS[i % LAST_SCAN_LABELS.length],
-      visibility: VISIBILITIES[i % 3],
-      activityStatus,
-      ecosystem: LANG_ECOSYSTEM[lang],
-      lifecycleStage: LIFECYCLE_STAGES[(i * 3) % LIFECYCLE_STAGES.length],
-      fixability: FIXABILITIES[i % FIXABILITIES.length],
-      exploitability: EXPLOITABILITIES[(i * 7) % EXPLOITABILITIES.length],
-      issueType: ISSUE_TYPES[(i * 5) % ISSUE_TYPES.length],
-      license: lic,
-      licenseType: LICENSE_TYPE_MAP[lic] ?? 'Proprietary',
-      tags: tags.length ? tags : [ALL_TAGS[i % ALL_TAGS.length]],
-    })
-  }
-  return items
-}
-
-// Generated at module level — fine for prototype
-const DATASET = generateDataset()
 
 /* ============================================================
    MOCK API
@@ -530,6 +388,18 @@ const filteredDataset = computed<AssetItem[]>(() => {
         )
       )
     }
+  }
+
+  // KPI billboard filter — applied on top of chips/search
+  if (props.kpiFilter) {
+    const kpiFn: Record<string, (item: AssetItem) => boolean> = {
+      at_risk:         (item) => item.issues.critical > 0 || item.issues.high > 0,
+      class_a:         (item) => item.assetClass === 'A',
+      critical_issues: (item) => item.issues.critical > 0,
+      unmonitored:     (item) => item.coverage.length === 0,
+    }
+    const fn = kpiFn[props.kpiFilter]
+    if (fn) result = result.filter(fn)
   }
 
   return result
