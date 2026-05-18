@@ -160,6 +160,24 @@ const selectedAsset = ref<AssetItem | null>(null)
 const actionTooltipVisible = ref(false)
 const actionTooltipStyle = ref({ top: '0px', left: '0px' })
 
+// Bulk actions bar — "Clear all" tooltip
+const babTooltipVisible = ref(false)
+const babTooltipStyle = ref({ top: '0px', left: '0px' })
+
+function showBabTooltip(e: MouseEvent | FocusEvent) {
+  const btn = e.currentTarget as HTMLElement
+  const rect = btn.getBoundingClientRect()
+  babTooltipStyle.value = {
+    top: `${rect.top - 4}px`,
+    left: `${rect.left + rect.width / 2}px`,
+  }
+  babTooltipVisible.value = true
+}
+
+function hideBabTooltip() {
+  babTooltipVisible.value = false
+}
+
 // Table options button tooltip
 const tableOptsTooltipVisible = ref(false)
 const tableOptsTooltipStyle = ref({ top: '0px', left: '0px' })
@@ -702,6 +720,12 @@ const groupCheckboxStates = computed<Map<string, false | 'indeterminate' | 'grou
 
 const headerCbAllChecked = computed(() => selMode.value === 'all' && selExcluded.value.size === 0)
 const headerCbIndeterminate = computed(() => !headerCbAllChecked.value && selMode.value !== 'none')
+
+const selectedCount = computed(() => {
+  if (selMode.value === 'none') return 0
+  if (selMode.value === 'all') return filteredDataset.value.length - selExcluded.value.size
+  return selIncluded.value.size
+})
 
 /* ============================================================
    SELECTION ACTIONS
@@ -1589,6 +1613,61 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
         </div>
       </aside>
     </Transition>
+  </Teleport>
+
+  <!-- Bulk actions bar -->
+  <Teleport to="body">
+    <Transition name="bab">
+      <div
+        v-if="selectedCount > 0"
+        class="at-bab"
+        role="toolbar"
+        aria-label="Bulk actions"
+      >
+        <!-- Count + clear -->
+        <div class="at-bab__count">
+          <span class="at-bab__count-text">
+            {{ selectedCount }} {{ selectedCount === 1 ? 'item' : 'items' }} selected
+          </span>
+          <button class="at-bab__icon-btn" aria-label="Clear all" @mouseenter="showBabTooltip" @mouseleave="hideBabTooltip" @focus="showBabTooltip" @blur="hideBabTooltip" @click="deselectAll(); hideBabTooltip()">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="at-bab__divider" aria-hidden="true" />
+
+        <!-- Actions -->
+        <div class="at-bab__actions">
+          <button class="at-bab__btn">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-5.5l6-4.5-6-4.5v9z"/>
+            </svg>
+            Monitor
+          </button>
+          <button class="at-bab__btn">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M21 3H3c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L22 5c0-1.11-.9-2-1-2zm0 14H3V5h18v12zm-5-9h-2v6h2V8zm-4 0H10v6h2V8z"/>
+            </svg>
+            Pause
+          </button>
+          <button class="at-bab__btn" :disabled="selectedCount > 20">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/>
+            </svg>
+            Retest
+          </button>
+          <button class="at-bab__btn at-bab__btn--danger">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+            Delete
+          </button>
+        </div>
+      </div>
+    </Transition>
+    <div v-if="babTooltipVisible" class="v9-tooltip" role="tooltip" :style="babTooltipStyle">Clear all</div>
   </Teleport>
 
   <Teleport to="body">
