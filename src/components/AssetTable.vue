@@ -253,8 +253,8 @@ const GROUP_BY_LABELS: Record<string, string> = {
   environment: 'Environment',
 }
 const groupByLabel = computed(() => groupBy.value ? (GROUP_BY_LABELS[groupBy.value] ?? 'Groups') : 'Groups')
-const sortCol = ref<ColId | null>('name')
-const sortDir = ref<SortDir>('asc')
+const sortCol = ref<ColId | null>('riskScore')
+const sortDir = ref<SortDir>('desc')
 const groupSortCol = ref<string>('follow')
 const groupSortDir = ref<SortDir>('asc')
 const sortPopoverOpen = ref(false)
