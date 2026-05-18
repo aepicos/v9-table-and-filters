@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import KpiBar from './KpiBar.vue'
 import type { KpiDef } from './KpiBar.vue'
 import AssetTable from './AssetTable.vue'
@@ -22,9 +22,90 @@ const search = ref('')
 const filters = ref<FilterChip[]>([])
 const advancedQuery = ref<AdvancedQuery | null>(null)
 
-// ── KPI billboard filter ──────────────────────────────────────
-const activeKpi = ref<string | null>(null)
+// ── KPI → filter chip templates ───────────────────────────────
+type ChipTemplate = Omit<FilterChip, 'id'>
 
+const KPI_CHIP_TEMPLATES: Record<string, ChipTemplate[]> = {
+  at_risk: [
+    { filterId: 'issue-severity', key: 'Issue severity', operator: 'is', value: 'Critical' },
+    { filterId: 'issue-severity', key: 'Issue severity', operator: 'is', value: 'High' },
+    { filterId: 'risk-score',     key: 'Risk score',     operator: '>',  value: '900' },
+  ],
+  class_a: [
+    { filterId: 'asset-class', key: 'Asset class', operator: 'is', value: 'A' },
+  ],
+  critical_issues: [
+    { filterId: 'issue-severity', key: 'Issue severity', operator: 'is', value: 'Critical' },
+  ],
+  known_exploits: [
+    { filterId: 'exploitability', key: 'Exploitability', operator: 'is', value: 'Known exploit' },
+  ],
+}
+
+// ── KPI state ─────────────────────────────────────────────────
+const activeKpis = ref<string[]>([])
+
+/** Maps kpiId → the chip IDs that were injected for it */
+const kpiChipIds = ref(new Map<string, string[]>())
+
+let uid = 0
+function nextId() { return `kpi-chip-${++uid}` }
+
+/** Called by KpiBar via v-model when the user clicks a cell */
+function handleKpiChange(newIds: string[]) {
+  const prev = activeKpis.value
+
+  // ── Deactivate removed KPIs ──────────────────────────────
+  for (const id of prev) {
+    if (!newIds.includes(id)) {
+      deactivateKpi(id)
+    }
+  }
+
+  // ── Activate added KPIs ───────────────────────────────────
+  for (const id of newIds) {
+    if (!prev.includes(id) && KPI_CHIP_TEMPLATES[id]) {
+      const chips: FilterChip[] = KPI_CHIP_TEMPLATES[id].map(t => ({ ...t, id: nextId() }))
+      filters.value = [...filters.value, ...chips]
+      kpiChipIds.value.set(id, chips.map(c => c.id))
+    }
+  }
+
+  activeKpis.value = newIds
+}
+
+/** Remove a KPI's chips and mark it inactive (without triggering the watch loop) */
+function deactivateKpi(kpiId: string, keepChips = false) {
+  const chipIds = kpiChipIds.value.get(kpiId) ?? []
+  if (!keepChips) {
+    filters.value = filters.value.filter(f => !chipIds.includes(f.id))
+  }
+  kpiChipIds.value.delete(kpiId)
+  activeKpis.value = activeKpis.value.filter(id => id !== kpiId)
+}
+
+// ── Detect external chip removal/modification ─────────────────
+// If a user removes or edits a chip that belongs to a KPI, deactivate
+// that KPI and clean up its remaining chips.
+let _suppressWatch = false
+
+watch(filters, (newFilters) => {
+  if (_suppressWatch) return
+  const filterIds = new Set(newFilters.map(f => f.id))
+
+  for (const [kpiId, chipIds] of kpiChipIds.value.entries()) {
+    // Check if any chip was removed
+    const missing = chipIds.some(id => !filterIds.has(id))
+    if (missing) {
+      // Suppress re-entry, then remove remaining chips for this KPI
+      _suppressWatch = true
+      deactivateKpi(kpiId)
+      _suppressWatch = false
+    }
+  }
+}, { deep: true })
+
+// ── Standard filter bar handlers ──────────────────────────────
 function fmt(n: number): string {
   return n.toLocaleString('en-US')
 }
@@ -34,8 +115,9 @@ const KPI_DEFS: KpiDef[] = [
     id: 'total',
     label: 'Total assets',
     value: fmt(DATASET_STATS.total),
-    delta: '+248',
+    delta: '—',
     change: 'none',
+    filterable: false,
   },
   {
     id: 'at_risk',
@@ -59,10 +141,10 @@ const KPI_DEFS: KpiDef[] = [
     change: 'good',
   },
   {
-    id: 'unmonitored',
-    label: 'Unmonitored assets',
-    value: fmt(DATASET_STATS.unmonitored),
-    delta: '-124',
+    id: 'known_exploits',
+    label: 'Assets with known exploits',
+    value: fmt(DATASET_STATS.knownExploits),
+    delta: '-42',
     change: 'good',
   },
 ]
@@ -78,15 +160,39 @@ function addFilter(chip: FilterChip) {
 
 function setOperator(id: string, operator: string) {
   const chip = filters.value.find((f) => f.id === id)
-  if (chip) chip.operator = operator
+  if (chip) {
+    // If this chip belongs to a KPI, changing it deactivates that KPI
+    // (keep all chips in place — user is taking manual control)
+    for (const [kpiId, chipIds] of kpiChipIds.value.entries()) {
+      if (chipIds.includes(id)) {
+        kpiChipIds.value.delete(kpiId)
+        activeKpis.value = activeKpis.value.filter(k => k !== kpiId)
+        break
+      }
+    }
+    chip.operator = operator
+  }
 }
 
 function setValue(id: string, value: string) {
   const chip = filters.value.find((f) => f.id === id)
-  if (chip) chip.value = value
+  if (chip) {
+    // Same as setOperator: manual edit detaches chip from its KPI
+    for (const [kpiId, chipIds] of kpiChipIds.value.entries()) {
+      if (chipIds.includes(id)) {
+        kpiChipIds.value.delete(kpiId)
+        activeKpis.value = activeKpis.value.filter(k => k !== kpiId)
+        break
+      }
+    }
+    chip.value = value
+  }
 }
 
 function applyAdvanced(query: AdvancedQuery) {
+  // Clear any active KPI filters too
+  activeKpis.value = []
+  kpiChipIds.value.clear()
   filters.value = []
   advancedQuery.value = query
 }
@@ -141,7 +247,8 @@ function clearAdvanced() {
       <KpiBar
         :kpis="KPI_DEFS"
         :can-filter="true"
-        v-model="activeKpi"
+        :model-value="activeKpis"
+        @update:model-value="handleKpiChange"
       />
 
       <!-- Filter bar -->
@@ -165,7 +272,6 @@ function clearAdvanced() {
           :search="search"
           :filters="filters"
           :advanced-query="advancedQuery"
-          :kpi-filter="activeKpi"
         />
       </div>
     </div>

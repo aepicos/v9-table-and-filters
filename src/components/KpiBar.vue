@@ -8,23 +8,29 @@ export interface KpiDef {
   value: string
   delta?: string
   change?: 'good' | 'bad' | 'none' | 'hidden'
+  /** When false, this cell is always static even if canFilter is true */
+  filterable?: boolean
 }
 
 const props = defineProps<{
   kpis: KpiDef[]
   canFilter?: boolean
-  /** v-model: which KPI cell is active (null = none) */
-  modelValue?: string | null
+  /** v-model: set of active KPI ids (multiple can be active at once) */
+  modelValue?: string[]
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string | null]
+  'update:modelValue': [value: string[]]
 }>()
 
 const hovered = ref<string | null>(null)
 
 function handleClick(id: string) {
-  emit('update:modelValue', props.modelValue === id ? null : id)
+  const current = props.modelValue ?? []
+  const next = current.includes(id)
+    ? current.filter(v => v !== id)
+    : [...current, id]
+  emit('update:modelValue', next)
 }
 </script>
 
@@ -33,27 +39,27 @@ function handleClick(id: string) {
     <component
       v-for="kpi in kpis"
       :key="kpi.id"
-      :is="canFilter ? 'button' : 'div'"
-      :type="canFilter ? 'button' : undefined"
+      :is="canFilter && kpi.filterable !== false ? 'button' : 'div'"
+      :type="canFilter && kpi.filterable !== false ? 'button' : undefined"
       class="kpi-cell"
       :class="{
-        'kpi-cell--filterable': canFilter,
-        'kpi-cell--active': modelValue === kpi.id,
-        'kpi-cell--hovered': canFilter && hovered === kpi.id && modelValue !== kpi.id,
+        'kpi-cell--filterable': canFilter && kpi.filterable !== false,
+        'kpi-cell--active':  modelValue?.includes(kpi.id),
+        'kpi-cell--hovered': canFilter && kpi.filterable !== false && hovered === kpi.id && !modelValue?.includes(kpi.id),
       }"
-      :aria-pressed="canFilter ? (modelValue === kpi.id) : undefined"
-      :aria-label="canFilter ? `Filter by ${kpi.label}` : undefined"
-      @click="canFilter && handleClick(kpi.id)"
-      @mouseenter="canFilter && (hovered = kpi.id)"
-      @mouseleave="canFilter && (hovered = null)"
-      @focus="canFilter && (hovered = kpi.id)"
-      @blur="canFilter && (hovered = null)"
+      :aria-pressed="canFilter && kpi.filterable !== false ? (modelValue?.includes(kpi.id) ?? false) : undefined"
+      :aria-label="canFilter && kpi.filterable !== false ? `Filter by ${kpi.label}` : undefined"
+      @click="canFilter && kpi.filterable !== false && handleClick(kpi.id)"
+      @mouseenter="canFilter && kpi.filterable !== false && (hovered = kpi.id)"
+      @mouseleave="canFilter && kpi.filterable !== false && (hovered = null)"
+      @focus="canFilter && kpi.filterable !== false && (hovered = kpi.id)"
+      @blur="canFilter && kpi.filterable !== false && (hovered = null)"
     >
-      <!-- Active indicator: filter badge peeking from left edge -->
-      <div v-if="canFilter" class="kpi-cell__left-badge" aria-hidden="true">
+      <!-- Active indicator: filter badge — in-flow so it pushes content right -->
+      <div v-if="canFilter && kpi.filterable !== false" class="kpi-cell__left-badge" aria-hidden="true">
         <div class="kpi-cell__badge-circle">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true">
-            <path d="M2 3.5A.5.5 0 0 1 2.5 3h11a.5.5 0 0 1 0 1H13v1.5a.5.5 0 0 1-.146.354L10 8.707V13.5a.5.5 0 0 1-.724.447l-3-1.5A.5.5 0 0 1 6 12V8.707L3.146 5.854A.5.5 0 0 1 3 5.5V4H2.5a.5.5 0 0 1-.5-.5z"/>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+            <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
           </svg>
         </div>
       </div>
@@ -66,18 +72,19 @@ function handleClick(id: string) {
         :change="kpi.change"
       />
 
-      <!-- Hover affordance: "Filter by this" badge (top-right, absolute) -->
-      <div v-if="canFilter" class="kpi-cell__filter-hint" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
-          <path d="M2 3.5A.5.5 0 0 1 2.5 3h11a.5.5 0 0 1 0 1H13v1.5a.5.5 0 0 1-.146.354L10 8.707V13.5a.5.5 0 0 1-.724.447l-3-1.5A.5.5 0 0 1 6 12V8.707L3.146 5.854A.5.5 0 0 1 3 5.5V4H2.5a.5.5 0 0 1-.5-.5z"/>
+      <!-- Hover affordance: "Filter by this" badge, top-right, absolute -->
+      <div v-if="canFilter && kpi.filterable !== false" class="kpi-cell__filter-hint" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+          <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
         </svg>
         <span>Filter by this</span>
       </div>
 
-      <!-- Active indicator: 4px selection bar along bottom edge -->
-      <div v-if="canFilter" class="kpi-cell__bar" aria-hidden="true">
+      <!-- Active indicator: 4px selection bar flush with bottom edge -->
+      <div v-if="canFilter && kpi.filterable !== false" class="kpi-cell__bar" aria-hidden="true">
         <div class="kpi-cell__bar-inner"></div>
       </div>
+
     </component>
   </div>
 </template>
@@ -87,37 +94,56 @@ function handleClick(id: string) {
 .kpi-bar {
   display: flex;
   align-items: stretch;
+  border: 1px solid var(--v9-ui-border);
+  border-radius: var(--v9-radius-m);
+  overflow: hidden;
 }
 
 /* ── Cell ── */
 .kpi-cell {
   position: relative;
+  isolation: isolate; /* contains z-index: -1 on ::before within this cell */
   flex: 1;
   min-width: 160px;
-  max-width: 320px;
+  max-width: 400px;
   display: flex;
   align-items: flex-start;
   gap: 0;
   padding: var(--v9-space-l) var(--v9-space-xl);
-  border-left: 1px solid var(--v9-ui-border-light);
-  border-top: 1px solid var(--v9-ui-border-light);
   background: transparent;
   color: inherit;
   text-align: left;
-  overflow: visible;
-  /* reset button styles */
   font: inherit;
   cursor: default;
 }
 
-.kpi-cell--filterable {
-  cursor: pointer;
-  transition: background 0.12s ease;
+.kpi-cell + .kpi-cell {
+  border-left: 1px solid var(--v9-ui-border-light);
 }
 
-.kpi-cell--filterable:hover,
-.kpi-cell--hovered {
+.kpi-cell--filterable {
+  cursor: pointer;
+}
+
+.kpi-cell--active {
+  padding-left: calc(var(--v9-space-xl) - 8px);
+}
+
+/* Inset hover background via pseudo-element */
+.kpi-cell--filterable::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: var(--v9-radius-m);
   background: var(--v9-ui-hover);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.kpi-cell--hovered::before {
+  opacity: 1;
 }
 
 .kpi-cell--filterable:focus-visible {
@@ -125,25 +151,26 @@ function handleClick(id: string) {
   outline-offset: -2px;
 }
 
-/* ── Left-edge active badge ── */
+/* ── Left badge — in-flow, collapses when inactive ── */
+/* Outer wrapper controls layout space (width + gap) */
 .kpi-cell__left-badge {
-  position: absolute;
-  left: -10px;
-  top: 14px;
-  width: 20px;
+  flex-shrink: 0;
+  width: 0;
+  margin-right: 0;
   height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 1;
+  overflow: hidden;           /* hides circle while wrapper collapses */
+  align-self: flex-start;
+  margin-top: 0;              /* aligns with label baseline */
+  transition: width 0.2s cubic-bezier(0.34, 1.3, 0.64, 1),
+              margin-right 0.2s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 .kpi-cell--active .kpi-cell__left-badge {
-  opacity: 1;
+  width: 20px;
+  margin-right: 8px;
 }
 
+/* Inner circle handles the visual fly-in */
 .kpi-cell__badge-circle {
   width: 20px;
   height: 20px;
@@ -154,12 +181,21 @@ function handleClick(id: string) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.2s ease,
+              transform 0.2s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
-/* ── "Filter by this" hover hint (top-right absolute) ── */
+.kpi-cell--active .kpi-cell__badge-circle {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ── "Filter by this" hint — flies in from the right on hover ── */
 .kpi-cell__filter-hint {
   position: absolute;
-  top: 14px;
+  top: 15px;
   right: var(--v9-space-l);
   display: flex;
   align-items: center;
@@ -175,31 +211,29 @@ function handleClick(id: string) {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transform: translateX(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-/* Show hint on hover, hide when active */
 .kpi-cell--hovered .kpi-cell__filter-hint {
   opacity: 1;
+  transform: translateX(0);
 }
 
-.kpi-cell--active .kpi-cell__filter-hint {
-  opacity: 0 !important;
-}
-
-/* ── Bottom selection bar ── */
+/* ── Bottom selection bar — slides up from below on click ── */
 .kpi-cell__bar {
   position: absolute;
-  left: -1px;
+  left: 0;
   right: 0;
-  bottom: -8px;
+  bottom: 0;
   height: 4px;
   padding: 0 var(--v9-space-xl);
   display: flex;
   align-items: flex-start;
-  opacity: 0;
-  transition: opacity 0.15s ease, bottom 0.15s ease;
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .kpi-cell__bar-inner {
@@ -209,10 +243,8 @@ function handleClick(id: string) {
   border-radius: 3px 3px 0 0;
 }
 
-/* Show bar on hover and when active */
-.kpi-cell--hovered .kpi-cell__bar,
 .kpi-cell--active .kpi-cell__bar {
-  bottom: 0;
   opacity: 1;
+  transform: translateY(0);
 }
 </style>

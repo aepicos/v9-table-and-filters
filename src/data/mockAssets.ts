@@ -191,37 +191,8 @@ function generateDataset(): AssetItem[] {
  * Threshold: score ≥ 55 out of a possible ~115.
  */
 export function isAtRisk(item: AssetItem): boolean {
-  let score = 0
-
-  // ── Class weight ──────────────────────────────────────────
-  if      (item.assetClass === 'A') score += 28
-  else if (item.assetClass === 'B') score += 12
-
-  // ── Severity ─────────────────────────────────────────────
-  if      (item.issues.critical >= 8) score += 24
-  else if (item.issues.critical >= 4) score += 14
-  else if (item.issues.critical >  0) score += 6
-
-  if      (item.issues.high >= 10) score += 14
-  else if (item.issues.high >=  6) score += 8
-  else if (item.issues.high >=  2) score += 3
-
-  // ── Coverage gap (0 tools = fully exposed, 6 = fully covered) ──
-  const covGap = (6 - item.coverage.length) / 6  // 0.0 → 1.0
-  score += Math.round(covGap * 14)                // 0–14 pts
-
-  // ── Reachability proxy: exploitability ───────────────────
-  if      (item.exploitability === 'Known exploit')     score += 15
-  else if (item.exploitability === 'Proof of concept')  score += 8
-
-  // ── Issue maturity proxy: known vulnerability type ───────
-  if (item.issueType === 'Vulnerability' && item.exploitability !== 'None') score += 5
-
-  // ── Maintainability proxy ────────────────────────────────
-  if (item.activityStatus === 'Stale') score += 8
-  if (item.lifecycleStage === 'Deprecated' || item.lifecycleStage === 'Retired') score += 6
-
-  return score >= 55
+  const hasSevereIssues = item.issues.critical > 0 || item.issues.high > 0
+  return hasSevereIssues && item.riskScore > 900
 }
 
 /* ============================================================
@@ -236,5 +207,5 @@ export const DATASET_STATS = {
   atRisk:         DATASET.filter(isAtRisk).length,
   classA:         DATASET.filter(a => a.assetClass === 'A').length,
   criticalIssues: DATASET.filter(a => a.issues.critical > 0).length,
-  unmonitored:    DATASET.filter(a => a.coverage.length === 0).length,
+  knownExploits:  DATASET.filter(a => a.exploitability === 'Known exploit').length,
 }
