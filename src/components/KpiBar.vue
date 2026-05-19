@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import KpiCard from './KpiCard.vue'
+import Tooltip from './Tooltip.vue'
 
 export interface KpiDef {
   id: string
@@ -43,9 +44,10 @@ function handleClick(id: string) {
       :type="canFilter && kpi.filterable !== false ? 'button' : undefined"
       class="kpi-cell"
       :class="{
-        'kpi-cell--filterable': canFilter && kpi.filterable !== false,
-        'kpi-cell--active':  modelValue?.includes(kpi.id),
-        'kpi-cell--hovered': canFilter && kpi.filterable !== false && hovered === kpi.id && !modelValue?.includes(kpi.id),
+        'kpi-cell--filterable':      canFilter && kpi.filterable !== false,
+        'kpi-cell--active':          modelValue?.includes(kpi.id),
+        'kpi-cell--hovered':         canFilter && kpi.filterable !== false && hovered === kpi.id && !modelValue?.includes(kpi.id),
+        'kpi-cell--hovered-active':  canFilter && kpi.filterable !== false && hovered === kpi.id && modelValue?.includes(kpi.id),
       }"
       :aria-pressed="canFilter && kpi.filterable !== false ? (modelValue?.includes(kpi.id) ?? false) : undefined"
       :aria-label="canFilter && kpi.filterable !== false ? `Filter by ${kpi.label}` : undefined"
@@ -57,11 +59,18 @@ function handleClick(id: string) {
     >
       <!-- Active indicator: filter badge — in-flow so it pushes content right -->
       <div v-if="canFilter && kpi.filterable !== false" class="kpi-cell__left-badge" aria-hidden="true">
-        <div class="kpi-cell__badge-circle">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
-            <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
-          </svg>
-        </div>
+        <Tooltip label="Remove filter" position="right">
+          <div class="kpi-cell__badge-circle">
+            <!-- Filter icon — visible when active but not hovered -->
+            <svg class="kpi-cell__badge-icon kpi-cell__badge-icon--filter" viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+              <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
+            </svg>
+            <!-- Close icon — visible when active and hovered -->
+            <svg class="kpi-cell__badge-icon kpi-cell__badge-icon--close" viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </div>
+        </Tooltip>
       </div>
 
       <!-- KPI content -->
@@ -77,7 +86,7 @@ function handleClick(id: string) {
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
           <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
         </svg>
-        <span>Filter by this</span>
+        <span>Filter</span>
       </div>
 
       <!-- Active indicator: 4px selection bar flush with bottom edge -->
@@ -109,7 +118,7 @@ function handleClick(id: string) {
   display: flex;
   align-items: flex-start;
   gap: 0;
-  padding: var(--v9-space-l) var(--v9-space-xl);
+  padding: calc(var(--v9-space-l) + 4px) calc(var(--v9-space-xl) + 4px);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -126,14 +135,14 @@ function handleClick(id: string) {
 }
 
 .kpi-cell--active {
-  padding-left: calc(var(--v9-space-xl) - 8px);
+  padding-left: calc(var(--v9-space-xl) - 4px);
 }
 
 /* Inset hover background via pseudo-element */
 .kpi-cell--filterable::before {
   content: '';
   position: absolute;
-  inset: 8px;
+  inset: 4px;
   border-radius: var(--v9-radius-m);
   background: var(--v9-ui-hover);
   opacity: 0;
@@ -147,7 +156,7 @@ function handleClick(id: string) {
 }
 
 .kpi-cell--filterable:focus-visible {
-  outline: 2px solid var(--v9-ui-selected);
+  outline: 2px solid var(--v9-ui-focus);
   outline-offset: -2px;
 }
 
@@ -192,10 +201,36 @@ function handleClick(id: string) {
   transform: translateX(0);
 }
 
+/* On hover of an active cell, swap to danger close style */
+.kpi-cell__badge-icon--close { display: none; }
+
+/* Constrain the Tooltip wrapper to the badge circle dimensions */
+.kpi-cell__left-badge :deep(.tt-wrap) {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Open overflow so the Tooltip can escape the collapsing wrapper */
+.kpi-cell--hovered-active .kpi-cell__left-badge {
+  overflow: visible;
+}
+
+.kpi-cell--hovered-active .kpi-cell__badge-circle {
+  background: var(--v9-ui-canvas);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-m);
+  color: var(--v9-danger-main);
+}
+.kpi-cell--hovered-active .kpi-cell__badge-icon--filter { display: none; }
+.kpi-cell--hovered-active .kpi-cell__badge-icon--close  { display: block; }
+
 /* ── "Filter by this" hint — flies in from the right on hover ── */
 .kpi-cell__filter-hint {
   position: absolute;
-  top: 15px;
+  top: 19px;
   right: var(--v9-space-l);
   display: flex;
   align-items: center;

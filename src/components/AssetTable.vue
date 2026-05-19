@@ -86,7 +86,13 @@ type AssetItem = AssetItemType
 
 const getSecondaryLine = assetPath
 
-const selectedAsset = ref<AssetItem | null>(null)
+const selectedAsset    = ref<AssetItem | null>(null)
+const drawerTriggerEl  = ref<HTMLElement | null>(null)
+
+function openAsset(item: AssetItem, trigger?: HTMLElement | null) {
+  selectedAsset.value   = item
+  drawerTriggerEl.value = trigger ?? null
+}
 
 // Action button tooltip (shared across all rows)
 const actionTooltipVisible = ref(false)
@@ -277,6 +283,51 @@ const groups = ref<GroupState[]>([])
 // UI state
 const colPanelOpen = ref(false)
 const scrolledX = ref(false)
+
+// ── Table options drawer focus management ──────────────────────
+const colPanelTriggerRef = ref<HTMLElement | null>(null)
+const colPanelCloseRef   = ref<HTMLElement | null>(null)
+const colPanelRef        = ref<HTMLElement | null>(null)
+
+watch(colPanelOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    colPanelCloseRef.value?.focus()
+  } else {
+    colPanelTriggerRef.value?.focus()
+  }
+})
+
+function onDrawerKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    colPanelOpen.value = false
+    return
+  }
+  if (e.key !== 'Tab') return
+
+  const panel = colPanelRef.value
+  if (!panel) return
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(el => !el.hasAttribute('disabled'))
+
+  const first = focusable[0]
+  const last  = focusable[focusable.length - 1]
+
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      e.preventDefault()
+      last?.focus()
+    }
+  } else {
+    if (document.activeElement === last) {
+      e.preventDefault()
+      first?.focus()
+    }
+  }
+}
 const loadStatus = ref('')
 
 // Refs
@@ -888,12 +939,13 @@ function handleClickOutside(e: MouseEvent) {
   // Close the drawer on outside click, unless the click is inside the
   // drawer panel itself or on a table row (row click will handle navigation).
   if (selectedAsset.value && !target.closest('.dr-panel') && !target.closest('.at-data-row')) {
-    selectedAsset.value = null
+    selectedAsset.value   = null
+    drawerTriggerEl.value = null
   }
 }
 
 function handleKeyEsc(e: KeyboardEvent) {
-  if (e.key === 'Escape') colPanelOpen.value = false
+  if (e.key === 'Escape') { selectedAsset.value = null; drawerTriggerEl.value = null }
 }
 
 /* ============================================================
@@ -1026,6 +1078,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
         <!-- Table options trigger -->
         <div class="at-toolbar-item">
           <button
+            ref="colPanelTriggerRef"
             class="at-icon-btn at-icon-btn--square"
             :aria-expanded="colPanelOpen"
             aria-haspopup="dialog"
@@ -1089,9 +1142,6 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                 :class="{ 'at-sortable': col.sortable }"
                 :aria-colindex="colIndex + 1"
                 :aria-sort="ariaSortFor(col)"
-                :tabindex="col.sortable ? 0 : undefined"
-                @keydown.enter.prevent="col.sortable && handleSort(col.id)"
-                @keydown.space.prevent="col.sortable && handleSort(col.id)"
               >
                 <button
                   v-if="col.label && col.sortable"
@@ -1172,7 +1222,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   class="at-data-row"
                   :class="{ 'at-data-row--active': selectedAsset?.id === item.id }"
                   tabindex="0"
-                  @click="selectedAsset = item"
+                  @click="openAsset(item)"
                 >
                   <template v-for="col in visibleCols" :key="col.id">
                     <div role="gridcell" :data-col-id="col.id" class="at-cell">
@@ -1186,7 +1236,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                       />
                       <!-- name -->
                       <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="selectedAsset = item">
+                        <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="openAsset(item, $event.currentTarget as HTMLElement)">
                           {{ item.name }}
                         </button>
                         <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1299,7 +1349,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
               class="at-data-row"
               :class="{ 'at-data-row--active': selectedAsset?.id === item.id }"
               tabindex="0"
-              @click="selectedAsset = item"
+              @click="openAsset(item)"
             >
               <template v-for="col in visibleCols" :key="col.id">
                 <div role="gridcell" :data-col-id="col.id" class="at-cell">
@@ -1311,7 +1361,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                     @click.stop
                   />
                   <div v-else-if="col.id === 'name'" class="at-asset-name-cell">
-                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="selectedAsset = item">
+                    <button class="at-asset-name-primary" :aria-label="`Open ${item.name}`" @click.stop="openAsset(item, $event.currentTarget as HTMLElement)">
                       {{ item.name }}
                     </button>
                     <span class="at-asset-name-secondary">{{ getSecondaryLine(item) }}</span>
@@ -1420,7 +1470,8 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
   <AssetDrawer
     :asset="selectedAsset"
     :assets="sortedFlatItems"
-    @close="selectedAsset = null"
+    :trigger-el="drawerTriggerEl"
+    @close="selectedAsset = null; drawerTriggerEl = null"
     @navigate="selectedAsset = $event"
   />
 
@@ -1429,14 +1480,16 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
     <Transition name="topt">
       <aside
         v-if="colPanelOpen"
+        ref="colPanelRef"
         class="topt-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Table options"
+        @keydown="onDrawerKeydown"
       >
         <header class="topt-header">
           <span class="topt-header__title">Table options</span>
-          <button class="topt-header__close" aria-label="Close" @click="colPanelOpen = false">
+          <button ref="colPanelCloseRef" class="topt-header__close" aria-label="Close" @click="colPanelOpen = false">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
               <path d="M15.25 4.75L4.75 15.25M4.75 4.75l10.5 10.5"/>
             </svg>

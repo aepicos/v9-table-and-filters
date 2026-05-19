@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import type { AssetItem } from '../data/assets'
 import { assetPath } from '../data/assets'
 
@@ -9,6 +9,7 @@ import type { RadioBarOption } from './RadioBar.vue'
 const props = defineProps<{
   asset: AssetItem | null
   assets?: AssetItem[]
+  triggerEl?: HTMLElement | null
 }>()
 const emit = defineEmits<{
   close: []
@@ -17,6 +18,10 @@ const emit = defineEmits<{
 
 const activeTab = ref('overview')
 const viewMode = ref('detail')
+
+// ── Focus management ──────────────────────────────────────────
+const panelRef   = ref<HTMLElement | null>(null)
+const closeBtnRef = ref<HTMLElement | null>(null)
 
 const VIEW_OPTIONS: RadioBarOption[] = [
   {
@@ -52,20 +57,41 @@ const TABS = [
   { id: 'related',  label: 'Related projects' },
 ]
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
+function onDrawerKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (e.key === 'Tab') {
+    const panel = panelRef.value
+    if (!panel) return
+    const focusable = Array.from(
+      panel.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last  = focusable[focusable.length - 1]
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus() }
+    } else {
+      if (document.activeElement === last)  { e.preventDefault(); first.focus() }
+    }
+  }
 }
 
-watch(() => props.asset, (a) => {
-  if (a) {
-    activeTab.value = 'overview'
-    document.addEventListener('keydown', onKeydown)
-  } else {
-    document.removeEventListener('keydown', onKeydown)
+watch(() => props.asset, async (newAsset, oldAsset) => {
+  if (newAsset) activeTab.value = 'overview'
+  if (newAsset && !oldAsset) {
+    // Drawer just opened — focus the close button
+    await nextTick()
+    closeBtnRef.value?.focus()
+  } else if (!newAsset) {
+    // Drawer just closed — return focus to the trigger
+    props.triggerEl?.focus()
   }
 })
-
-onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 const path = computed(() => props.asset ? assetPath(props.asset) : '')
 
@@ -165,10 +191,12 @@ const typeRows = computed((): { key: string; value: string }[] => {
     <Transition name="dr">
       <aside
         v-if="asset"
+        ref="panelRef"
         class="dr-panel"
         role="dialog"
         aria-modal="true"
         :aria-label="asset.name"
+        @keydown="onDrawerKeydown"
       >
 
         <!-- ── Header ─────────────────────────────────────────── -->
@@ -195,7 +223,7 @@ const typeRows = computed((): { key: string; value: string }[] => {
               />
               <div class="dr-controls-sep" aria-hidden="true" />
               <div class="dr-ib-wrap">
-                <button class="dr-ib dr-ib--s" aria-label="Close" @click="emit('close')">
+                <button ref="closeBtnRef" class="dr-ib dr-ib--s" aria-label="Close" @click="emit('close')">
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M15.25 4.75L10 10m0 0L4.75 4.75M10 10l5.25 5.25M10 10l-5.25 5.25" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
