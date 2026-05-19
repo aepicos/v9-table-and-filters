@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+
+const props = defineProps<{
+  title: {
+    crumbs: string[]
+    current: string
+    sub: string | null
+  }
+}>()
 import KpiBar from './KpiBar.vue'
 import type { KpiDef } from './KpiBar.vue'
 import AssetTable from './AssetTable.vue'
@@ -7,16 +15,6 @@ import FilterBar from './FilterBar.vue'
 import { type FilterChip, type AdvancedQuery } from '../data/filters'
 import { DATASET_STATS } from '../data/mockAssets'
 
-const TABS = [
-  'All assets',
-  'Repositories',
-  'Container images',
-  'Packages',
-  'API',
-  'Web applications',
-]
-
-const activeTab = ref('All assets')
 const search = ref('')
 
 const filters = ref<FilterChip[]>([])
@@ -208,41 +206,32 @@ function clearAdvanced() {
   >
     <!-- Page header -->
     <div
-      class="flex items-center justify-between px-6 border-b shrink-0"
-      style="height: 56px; background: var(--v9-ui-bg); border-color: var(--v9-ui-border);"
+      class="flex items-center justify-between px-6 mt-3 shrink-0"
+      style="height: 56px; background: var(--v9-ui-bg);"
     >
-      <div class="flex items-center gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5" style="color: var(--v9-ui-icon);">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="7" height="7" rx="1" />
-        </svg>
-        <h1 class="text-sm font-semibold" style="color: var(--v9-ui-text); margin: 0;">Asset Management</h1>
+      <!-- PageTitle -->
+      <div class="page-title">
+        <!-- Icon box -->
+        <div class="page-title__icon-box" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20">
+            <path d="m13.883 3.767 2.359 2.358-2.359 2.358-2.358-2.358zm-6.383.4V7.5H4.167V4.167zm8.333 8.333v3.333H12.5V12.5zm-8.333 0v3.333H4.167V12.5zm6.383-11.092L9.167 6.117l4.716 4.716L18.6 6.117zM9.167 2.5H2.5v6.667h6.667zm8.333 8.333h-6.667V17.5H17.5zm-8.333 0H2.5V17.5h6.667z"/>
+          </svg>
+        </div>
+        <!-- Breadcrumb title -->
+        <h1 class="page-title__text">
+          <template v-for="(crumb, i) in props.title.crumbs" :key="i">
+            <span class="page-title__crumb">{{ crumb }}</span>
+            <span class="page-title__sep" aria-hidden="true">/</span>
+          </template>
+          <span class="page-title__crumb page-title__crumb--current">{{ props.title.current }}</span>
+          <span v-if="props.title.sub" class="page-title__sub">{{ props.title.sub }}</span>
+        </h1>
       </div>
 
     </div>
 
-    <!-- Tabs -->
-    <div
-      class="flex items-center gap-0 px-6 border-b shrink-0"
-      style="background: var(--v9-ui-bg); border-color: var(--v9-ui-border);"
-    >
-      <button
-        v-for="tab in TABS"
-        :key="tab"
-        @click="activeTab = tab"
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
-        :style="activeTab === tab
-          ? 'border-color: var(--v9-ui-text); color: var(--v9-ui-text);'
-          : 'border-color: transparent; color: var(--v9-ui-dimmed);'"
-      >
-        {{ tab }}
-      </button>
-    </div>
-
     <!-- Content area -->
-    <div class="flex flex-col gap-4 px-6 pt-6 pb-8 flex-1">
+    <div class="flex flex-col gap-4 px-6 pt-3 pb-8 flex-1">
       <!-- KPI billboard bar -->
       <KpiBar
         :kpis="KPI_DEFS"
@@ -277,3 +266,63 @@ function clearAdvanced() {
     </div>
   </main>
 </template>
+
+<style scoped>
+/* PageTitle */
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-xs); /* 6px */
+}
+
+/* Icon box — M/Default: 32×32px, ui/canvas bg, ui/border-light border, radius-m */
+.page-title__icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  background: var(--v9-ui-canvas);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-m);
+  color: var(--v9-ui-icon);
+}
+
+/* Breadcrumb text row */
+.page-title__text {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-xs); /* 6px */
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-xxl); /* 20px */
+  line-height: var(--v9-line-height-l); /* 24px */
+  font-weight: var(--v9-font-weight-regular);
+  white-space: nowrap;
+}
+
+.page-title__crumb {
+  color: var(--v9-ui-dimmed);
+  font-weight: var(--v9-font-weight-regular);
+}
+
+.page-title__crumb--current {
+  color: var(--v9-ui-text);
+  font-weight: var(--v9-font-weight-strong);
+}
+
+.page-title__sep {
+  color: var(--v9-ui-dimmed);
+  font-weight: var(--v9-font-weight-regular);
+}
+
+.page-title__sub {
+  color: var(--v9-ui-text);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  align-self: flex-end; /* optically sits at the baseline of the larger text */
+  padding-bottom: 2px;
+}
+</style>
