@@ -333,7 +333,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
               aria-label="Account options"
               @click="themeMenuOpen = !themeMenuOpen"
             >
-              <span class="acct-sel__initials">AA</span>
+              <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+                <rect width="128" height="128" fill="black"/>
+                <path d="M97.4824 66.3416C101.214 66.3416 104.238 69.3552 104.238 73.0732C104.24 74.4536 103.814 75.8008 103.019 76.9312C104.791 77.8624 106 79.7176 106 81.8536C106 84.9248 103.502 87.4148 100.42 87.4148C98.09 87.4148 96.0932 85.9928 95.2576 83.972L74.39 93.3764L82.3804 96.9764C83.5796 95.0992 85.6856 93.8536 88.084 93.8536C91.8148 93.8536 94.8392 96.8672 94.8392 100.585C94.8392 103.373 93.1392 105.764 90.7164 106.786C90.5364 109.696 88.1116 112 85.1468 112C82.0648 112 79.5664 109.51 79.5664 106.439C79.566 106.002 79.6172 105.567 79.7188 105.142L64 98.0592L48.2812 105.144C48.3029 105.235 48.3226 105.328 48.34 105.42C48.385 105.663 48.4139 105.912 48.4262 106.165C48.4306 106.256 48.4336 106.347 48.4336 106.439C48.4336 109.51 45.935 112 42.8532 112C39.8884 112 37.4637 109.696 37.2838 106.786C34.861 105.764 33.1608 103.373 33.1608 100.585C33.1608 96.8672 36.1851 93.8536 39.9161 93.8536C42.3144 93.8536 44.4214 95.0992 45.6195 96.9764L53.6101 93.3764L32.7423 83.972C31.9065 85.9928 29.9099 87.4148 27.5804 87.4148C24.4985 87.4148 22 84.9248 22 81.8536C22 80.0508 22.8609 78.4484 24.1955 77.4324C23.1927 76.258 22.5874 74.736 22.5874 73.0732C22.5874 69.3552 25.6117 66.3416 29.3426 66.3416C33.0736 66.3416 36.0979 69.3552 36.0979 73.0732C36.0979 74.0628 35.8842 75.002 35.4995 75.848L64 88.6932L91.5424 76.28C91.0232 75.3264 90.7272 74.2348 90.7272 73.0732C90.7272 69.3552 93.7516 66.3416 97.4824 66.3416ZM84.2656 16C91.0796 16 91.3084 46.9308 91.3148 52.5652V52.878C91.3148 65.68 79.3284 76.082 64.4516 76.2892L64 76.2928C49.0658 76.2928 36.9307 66.0188 36.689 53.2658L36.6853 52.878V52.5652C36.6918 46.9305 36.9206 16 43.7343 16C47.6775 16 52.517 20.6614 58.2544 29.9829C60.1068 29.6431 62.0292 29.4634 64 29.4634C65.9268 29.4623 67.8504 29.6365 69.7456 29.9829C75.4828 20.6614 80.3224 16 84.2656 16ZM69.3088 58.0676C67.9516 56.556 59.9192 56.6676 58.6619 58.0676C57.405 59.4684 61.3238 64 63.9852 64C66.6472 63.9996 70.6648 59.5792 69.3088 58.0676ZM53.1329 43.5122C49.2398 43.5122 46.0839 46.6571 46.0839 50.5366C46.0839 54.4161 49.2398 57.5608 53.1329 57.5608C57.0259 57.5608 60.1818 54.4161 60.1818 50.5366C60.1818 46.6571 57.0259 43.5122 53.1329 43.5122ZM74.8672 43.5122C70.974 43.5122 67.818 46.6571 67.818 50.5366C67.818 54.4161 70.974 57.5608 74.8672 57.5608C78.76 57.5608 81.916 54.4161 81.916 50.5366C81.916 46.6571 78.76 43.5122 74.8672 43.5122Z" fill="white"/>
+              </svg>
             </button>
             <!-- Tooltip (suppressed when menu open) -->
             <div v-if="!themeMenuOpen" class="acct-sel__tooltip" role="tooltip">Account options</div>
@@ -824,13 +827,13 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 /* ── AccountSelect (size s = 24px) ────────────────────────────── */
 .acct-sel {
   position: relative;
-  display: flex;
-  align-items: center;
   --acct-size: 24px;
+  width: var(--acct-size);
+  height: var(--acct-size);
   flex-shrink: 0;
 }
-.acct-sel:hover { width: calc(var(--acct-size) + 11px); }
 
+/* Chevron tray — fixed, chevron at right edge, revealed when avatar slides left */
 .acct-sel__dropdown {
   position: absolute;
   top: 0;
@@ -845,16 +848,17 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   border-radius: var(--v9-radius-m);
   background: var(--v9-input-bg);
   color: var(--v9-ui-dimmed);
-  transition: left 0.1s ease, background 0.1s ease;
+  transition: background 0.1s ease;
 }
 .acct-sel:hover .acct-sel__dropdown {
-  left: 11px;
   background: var(--v9-ui-hover);
 }
 
+/* Avatar button — absolutely positioned, slides left on hover to reveal chevron */
 .acct-sel__avatar {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: var(--acct-size);
   height: var(--acct-size);
   border: 1px solid var(--v9-input-border);
@@ -866,20 +870,16 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: left 0.15s ease;
+}
+.acct-sel:hover .acct-sel__avatar {
+  left: -11px;
 }
 .acct-sel__avatar:focus-visible {
   outline: 2px solid var(--v9-ui-focus);
   outline-offset: 2px;
 }
 
-.acct-sel__initials {
-  color: var(--v9-ui-text);
-  font-family: var(--v9-font);
-  font-size: var(--v9-font-size-xs); /* 12px for size s */
-  line-height: 16px;
-  font-weight: var(--v9-font-weight-regular);
-  user-select: none;
-}
 
 .acct-sel__tooltip {
   position: absolute;
