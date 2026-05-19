@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AssetManagementPage from './components/AssetManagementPage.vue'
 
 const navItems = [
@@ -55,14 +55,121 @@ const moreMenuItems = [
   },
 ]
 
-const secondaryNavItems = [
-  { label: 'Coverage', active: false },
-  { label: 'Asset Management', active: true },
-  { label: 'Dependencies', active: false },
-  { label: 'Components', active: false },
+const secNavPages = [
+  { label: 'Coverage', children: [] },
+  {
+    label: 'Asset Management',
+    children: [
+      { label: 'Repositories', active: false },
+      { label: 'Container images', active: false },
+      { label: 'Packages', active: false },
+      { label: 'API', active: false },
+      { label: 'Web applications', active: false },
+    ],
+  },
+  { label: 'Dependencies', children: [] },
+  { label: 'Components', children: [] },
 ]
 
+const secNavViews = [
+  { label: 'Critical repos', context: 'Asset management • Repositories' },
+  { label: 'External APIs', context: 'Asset management • API' },
+  { label: 'High-risk packages', context: 'Asset management • Packages' },
+]
+
+// Single selection across all pages + children
+const selectedItem = ref('Asset Management')
+const secNavCollapsed = ref(false)
+
+// Which parent section stays open — AM stays open when a child of AM is selected
+const openSection = computed(() => {
+  for (const page of secNavPages) {
+    if (page.label === selectedItem.value) return page.label
+    if (page.children.some((c: any) => c.label === selectedItem.value)) return page.label
+  }
+  return null
+})
+
+// ── Page title (driven by selected nav item) ──────────────────
+const pageTitle = computed(() => {
+  for (const page of secNavPages) {
+    if (page.label === selectedItem.value) {
+      // Special case: Asset Management at top level → show sub-label
+      if (page.label === 'Asset Management') {
+        return { crumbs: ['Inventory'], current: 'Asset management', sub: '(all assets)' as string | null }
+      }
+      return { crumbs: ['Inventory'], current: page.label, sub: null as string | null }
+    }
+    const child = page.children.find((c: any) => c.label === selectedItem.value)
+    if (child) {
+      return { crumbs: ['Inventory', 'Asset management'], current: child.label, sub: null as string | null }
+    }
+  }
+  return { crumbs: ['Inventory'], current: selectedItem.value, sub: null as string | null }
+})
+
+// ── Sliding indicator (radio-bar pattern) ─────────────────────
+const pageListRef = ref<HTMLElement | null>(null)
+const allButtonRefs: Record<string, HTMLElement> = {}
+
+const indicatorY = ref(0)
+const indicatorH = ref(32)
+const indicatorReady = ref(false)
+const indicatorAnimate = ref(false)
+
+const indicatorStyle = computed(() => ({
+  top: `${indicatorY.value}px`,
+  height: `${indicatorH.value}px`,
+  opacity: indicatorReady.value ? '1' : '0',
+  transition: indicatorAnimate.value
+    ? 'top 0.18s cubic-bezier(0.4,0,0.2,1), height 0.18s cubic-bezier(0.4,0,0.2,1)'
+    : 'none',
+}))
+
+function updateIndicator(animate: boolean) {
+  const btn = allButtonRefs[selectedItem.value]
+  const list = pageListRef.value
+  if (!btn || !list) return
+  const listRect = list.getBoundingClientRect()
+  const btnRect = btn.getBoundingClientRect()
+  indicatorAnimate.value = animate
+  indicatorY.value = btnRect.top - listRect.top
+  indicatorH.value = btnRect.height
+  indicatorReady.value = true
+}
+
+watch(selectedItem, async () => {
+  await nextTick()
+  updateIndicator(true)
+  // Re-sync after children collapse so indicator lands correctly
+  // for items below the collapsing AM children
+  setTimeout(async () => {
+    await nextTick()
+    updateIndicator(false)
+  }, 220)
+})
+
+function onChildrenEnter(el: Element) {
+  const e = el as HTMLElement
+  e.style.height = '0'
+  e.style.opacity = '0'
+  e.offsetHeight // force reflow
+  e.style.height = e.scrollHeight + 'px'
+  e.style.opacity = '1'
+}
+function onChildrenAfterEnter(el: Element) {
+  (el as HTMLElement).style.height = 'auto'
+}
+function onChildrenLeave(el: Element) {
+  const e = el as HTMLElement
+  e.style.height = e.scrollHeight + 'px'
+  e.offsetHeight // force reflow
+  e.style.height = '0'
+  e.style.opacity = '0'
+}
+
 // ── Theme toggle ─────────────────────────────────────────────────
+
 const isDark = ref(false)
 const themeMenuOpen = ref(false)
 const avatarRef = ref<HTMLElement | null>(null)
@@ -88,15 +195,20 @@ function onOutsideClick(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('mousedown', onOutsideClick))
+onMounted(async () => {
+  await nextTick()
+  updateIndicator(false)
+  document.addEventListener('mousedown', onOutsideClick)
+})
 onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
+
 </script>
 
 <template>
   <div class="app-shell" style="background: var(--v9-ui-bg); font-family: var(--v9-font);">
 
     <!-- ── Primary nav (AppNav) ───────────────────────────────── -->
-    <aside ref="navRef" class="app-nav" aria-label="Primary navigation">
+    <aside ref="navRef" class="app-nav" :class="{ 'app-nav--sec-open': !secNavCollapsed }" aria-label="Primary navigation">
 
       <!-- Top: logo + main nav items -->
       <div class="app-nav__top">
@@ -202,48 +314,107 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </aside>
 
     <!-- ── Secondary nav ─────────────────────────────────────── -->
-    <aside
-      class="sec-nav"
-      aria-label="Secondary navigation"
-    >
-      <nav class="sec-nav__items">
+    <aside class="sec-nav" :class="{ 'sec-nav--collapsed': secNavCollapsed }" aria-label="Secondary navigation">
+
+      <!-- Toggle button — hangs 12px outside the right border, centred with the Pages header -->
+      <div class="sec-nav__toggle-wrap">
         <button
-          v-for="item in secondaryNavItems"
-          :key="item.label"
-          class="sec-nav__item"
-          :class="{ 'sec-nav__item--active': item.active }"
+          class="sec-nav__toggle-btn"
+          @click="secNavCollapsed = !secNavCollapsed"
+          :aria-label="secNavCollapsed ? 'Show menu' : 'Hide menu'"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="sec-nav__icon" aria-hidden="true">
-            <template v-if="item.label === 'Coverage'">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </template>
-            <template v-else-if="item.label === 'Asset Management'">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </template>
-            <template v-else-if="item.label === 'Dependencies'">
-              <circle cx="18" cy="18" r="3" />
-              <circle cx="6" cy="6" r="3" />
-              <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-              <path d="M11 18H8a2 2 0 0 1-2-2V9" />
-            </template>
-            <template v-else>
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            </template>
+          <!-- push_left when expanded -->
+          <svg v-if="!secNavCollapsed" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+            <path d="M3 18H16V16H3V18ZM3 13H13V11H3V13ZM3 6V8H16V6H3ZM21 15.59L17.42 12L21 8.41L19.59 7L14.59 12L19.59 17L21 15.59Z"/>
           </svg>
-          <span class="sec-nav__label">{{ item.label }}</span>
-          <svg
-            v-if="item.active"
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-            class="sec-nav__chevron"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
+          <!-- push_right when collapsed -->
+          <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+            <path d="M21 6H8V8H21V6ZM21 11H11V13H21V11ZM21 18V16H8V18H21ZM3 8.41L6.58 12L3 15.59L4.41 17L9.41 12L4.41 7L3 8.41Z"/>
           </svg>
         </button>
-      </nav>
+        <div class="sec-nav__toggle-tt" role="tooltip">
+          {{ secNavCollapsed ? 'Show menu' : 'Hide menu' }}
+        </div>
+      </div>
+
+      <!-- Pages section -->
+      <div v-show="!secNavCollapsed" class="sec-nav__section">
+        <div class="sec-nav__section-hdr">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" class="sec-nav__section-icon" aria-hidden="true"><path d="M6.665 13.334h6.667V15H6.665zm0-3.334h6.667v1.667H6.665zm5-8.333H5c-.917 0-1.667.75-1.667 1.667v13.333c0 .917.742 1.667 1.658 1.667H15c.916 0 1.666-.75 1.666-1.667v-10zm3.334 15h-10V3.334h5.833V7.5h4.167z"/></svg>
+          <span class="sec-nav__section-label">Pages</span>
+        </div>
+
+        <div class="sec-nav__page-list" ref="pageListRef">
+          <!-- Sliding selected indicator (radio-bar pattern) -->
+          <div class="sec-nav__page-indicator" :style="indicatorStyle" aria-hidden="true" />
+
+          <div
+            v-for="page in secNavPages"
+            :key="page.label"
+            class="sec-nav__page-group"
+            :class="{ 'sec-nav__page-group--open': openSection === page.label }"
+          >
+            <button
+              class="sec-nav__page"
+              :class="{ 'sec-nav__page--active': selectedItem === page.label }"
+              @click="selectedItem = page.label"
+              :ref="(el: any) => { if (el) allButtonRefs[page.label] = el }"
+            >
+              <span class="sec-nav__page-label">{{ page.label }}</span>
+            </button>
+            <!-- Expanded children with hierarchy tree — animated -->
+            <Transition
+              name="sec-nav-children"
+              @enter="onChildrenEnter"
+              @after-enter="onChildrenAfterEnter"
+              @leave="onChildrenLeave"
+            >
+              <div
+                v-if="page.children.length && openSection === page.label"
+                class="sec-nav__children"
+              >
+                <button
+                  v-for="child in page.children"
+                  :key="child.label"
+                  class="sec-nav__child"
+                  :class="{ 'sec-nav__child--active': selectedItem === child.label }"
+                  @click="selectedItem = child.label"
+                  :ref="(el: any) => { if (el) allButtonRefs[child.label] = el }"
+                >
+                  <span class="sec-nav__child-label">{{ child.label }}</span>
+                </button>
+              </div>
+            </Transition>
+          </div>
+        </div>
+      </div>
+
+      <!-- Views section -->
+      <div v-show="!secNavCollapsed" class="sec-nav__section sec-nav__section--sep">
+        <div class="sec-nav__section-hdr">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" class="sec-nav__section-icon" aria-hidden="true"><path d="M14.168 2.5H5.835c-.917 0-1.667.75-1.667 1.667V17.5l5.833-2.5 5.834 2.5V4.167c0-.917-.75-1.667-1.667-1.667m0 12.5-4.167-1.817L5.835 15V4.167h8.333z"/></svg>
+          <span class="sec-nav__section-label">Views</span>
+        </div>
+
+        <div class="sec-nav__view-list">
+          <button v-for="view in secNavViews" :key="view.label" class="sec-nav__view">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16" class="sec-nav__pin" aria-hidden="true"><path d="M5.909 1.194 1.194 5.91a.67.67 0 0 0 0 .942c.26.26.684.26.943 0l.472-.471 2.357 2.357a1.997 1.997 0 0 1 0 2.828l.942.943 2.815-2.814 3.3 3.3h.942v-.943l-3.3-3.3 2.843-2.842-.943-.943a1.997 1.997 0 0 1-2.828 0L6.38 2.609l.471-.472a.67.67 0 0 0 0-.943.67.67 0 0 0-.942 0"/></svg>
+            <div class="sec-nav__view-text">
+              <span class="sec-nav__view-name">{{ view.label }}</span>
+              <span class="sec-nav__view-context">{{ view.context }}</span>
+            </div>
+          </button>
+          <button class="sec-nav__all-views">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+              <circle cx="5" cy="10" r="1.5"/>
+              <circle cx="10" cy="10" r="1.5"/>
+              <circle cx="15" cy="10" r="1.5"/>
+            </svg>
+            <span>All views</span>
+          </button>
+        </div>
+      </div>
+
     </aside>
 
     <!-- ── Right column ──────────────────────────────────────── -->
@@ -370,7 +541,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
       <!-- Main content -->
       <main id="main" tabindex="-1" class="app-page">
-        <AssetManagementPage />
+        <AssetManagementPage :title="pageTitle" />
       </main>
     </div>
   </div>
@@ -400,6 +571,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   border-radius: var(--v9-radius-m);
   overflow: visible; /* tooltips + menus escape */
   z-index: 10;
+  transition: border-radius 0.15s ease;
+}
+.app-nav--sec-open {
+  border-radius: var(--v9-radius-m) 0 0 var(--v9-radius-m);
 }
 
 .app-nav__top {
@@ -673,71 +848,334 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 }
 
 /* ── Secondary nav ────────────────────────────────────────────── */
+/* ── Secondary nav panel ──────────────────────────────────────── */
 .sec-nav {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   width: 220px;
-  margin: 8px 0 8px 4px;
+  margin: 8px 0 8px 0;
   background: var(--v9-ui-canvas);
-  border: 1px solid var(--v9-ui-border-light);
-  border-radius: var(--v9-radius-m);
-  overflow: hidden;
+  border-top: 1px solid var(--v9-ui-border-light);
+  border-right: 1px solid var(--v9-ui-border-light);
+  border-bottom: 1px solid var(--v9-ui-border-light);
+  border-radius: 0 var(--v9-radius-m) var(--v9-radius-m) 0;
+  overflow: visible; /* allow toggle button to hang outside right edge */
+  transition: width 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.sec-nav--collapsed {
+  width: 0;
+  background: transparent;
+  border-color: transparent;
 }
 
-.sec-nav__items {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--v9-space-m) var(--v9-space-s);
-  padding-top: 70px; /* align with primary nav items */
-}
-
-.sec-nav__item {
+/* Toggle button — hangs 12px outside the right border */
+.sec-nav__toggle-wrap {
+  position: absolute;
+  top: 6px; /* aligned with scope selector bar */
+  right: -12px;
   display: flex;
   align-items: center;
-  gap: var(--v9-space-s);
+  z-index: 10;
+}
+.sec-nav__toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 2px;
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  color: var(--v9-ui-icon);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sec-nav__toggle-btn:hover { color: var(--v9-ui-text); background: var(--v9-ui-hover); }
+.sec-nav__toggle-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 2px; }
+
+/* Tooltip — opens to the right */
+.sec-nav__toggle-tt {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--v9-tooltip-bg);
+  color: var(--v9-tooltip-text);
+  padding: var(--v9-space-xs) var(--v9-space-s);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.1), 0px 4px 6px -2px rgba(0,0,0,0.06);
+  font-size: var(--v9-font-size-m);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease 0.25s;
+  z-index: 500;
+}
+.sec-nav__toggle-wrap:hover .sec-nav__toggle-tt { opacity: 1; }
+
+/* Section wrapper */
+.sec-nav__section {
+  display: flex;
+  flex-direction: column;
+  padding: var(--v9-space-m); /* 12px */
+}
+.sec-nav__section--sep {
+  border-top: 1px solid var(--v9-ui-border-light);
+}
+
+/* Section header row */
+.sec-nav__section-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-xxs); /* 2px */
+  height: 28px;
+  padding-right: var(--v9-space-m);
+  padding-block: var(--v9-space-xxs);
+  flex-shrink: 0;
+}
+.sec-nav__section-icon {
+  flex-shrink: 0;
+  color: var(--v9-ui-icon);
+}
+.sec-nav__section-label {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);   /* 13px */
+  font-weight: var(--v9-font-weight-strong); /* 600 */
+  line-height: var(--v9-line-height-s); /* 16px */
+  color: var(--v9-ui-text);
+  white-space: nowrap;
+}
+
+/* Page list (top-level items + their expanded children) */
+.sec-nav__page-list {
+  position: relative;
+  z-index: 0; /* establishes stacking context for the three z-layers below */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sliding indicator — layer 2: above spine, below button text */
+.sec-nav__page-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Group wrapper — gives ::before an anchor point that includes the parent button */
+.sec-nav__page-group {
+  position: relative;
+}
+
+/* Vertical spine — layer 1: below indicator card
+   Starts at the top of the first child (top: 36px = AM button height: 8px + 20px lh + 8px),
+   ends at the centre of the last child (bottom: 18px = half of 36px child height). */
+.sec-nav__page-group--open::before {
+  content: '';
+  position: absolute;
+  left: 15.5px;
+  top: 36px;
+  bottom: 18px;
+  width: 1px;
+  background: var(--v9-ui-border);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Top-level page item */
+.sec-nav__page {
+  position: relative;
+  z-index: 3; /* layer 3: above indicator (2) and spine (1) */
+  display: flex;
+  align-items: center;
   width: 100%;
-  height: 32px;
-  padding: 0 var(--v9-space-s);
+  padding: var(--v9-space-s) var(--v9-space-m); /* 8px 12px */
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none; /* indicator handles the selected background */
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);  /* 14px */
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-dimmed);
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.1s;
+}
+/* Hover: only on unselected buttons */
+.sec-nav__page:not(.sec-nav__page--active):hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+/* Active: stronger text colour, no background (indicator does that) */
+.sec-nav__page--active { color: var(--v9-ui-text); font-weight: var(--v9-font-weight-strong); }
+.sec-nav__page:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+.sec-nav__page-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Hierarchy tree ─────────────────────────────────────────── */
+.sec-nav__children {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Child item */
+.sec-nav__child {
+  position: relative;
+  z-index: 3; /* layer 3: above indicator (2) and spine (1) */
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--v9-space-s) var(--v9-space-m) var(--v9-space-s) 32px; /* pl-32 */
+  border: 1px solid transparent;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-dimmed);
+  cursor: pointer;
+  text-align: left;
+}
+.sec-nav__child:not(.sec-nav__child--active):hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+.sec-nav__child:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+/* Horizontal connector for every child */
+.sec-nav__child::before {
+  content: '';
+  position: absolute;
+  left: 15.5px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: var(--v9-ui-border);
+  pointer-events: none;
+}
+
+/* Active child: stronger text + bullet on the spine, indicator handles the card */
+.sec-nav__child--active {
+  color: var(--v9-ui-text);
+  font-weight: var(--v9-font-weight-strong);
+}
+.sec-nav__child--active::before {
+  display: none; /* no horizontal connector on selected child */
+}
+.sec-nav__child--active::after {
+  content: '';
+  position: absolute;
+  left: 15.5px;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--v9-ui-text);
+  pointer-events: none;
+}
+
+.sec-nav__child-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Children expand/collapse transition */
+.sec-nav-children-enter-active,
+.sec-nav-children-leave-active {
+  transition: height 0.2s ease, opacity 0.15s ease;
+  overflow: hidden;
+}
+.sec-nav-children-enter-from,
+.sec-nav-children-leave-to {
+  height: 0 !important;
+  opacity: 0;
+}
+
+/* ── Views section ──────────────────────────────────────────── */
+.sec-nav__view-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sec-nav__view {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v9-space-xs); /* 6px */
+  width: 100%;
+  padding: var(--v9-space-m); /* 12px */
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.sec-nav__view:hover { background: var(--v9-ui-hover); }
+.sec-nav__view:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+.sec-nav__pin {
+  flex-shrink: 0;
+  margin-top: 2px; /* optically align with first text line */
+  color: var(--v9-ui-icon);
+}
+
+.sec-nav__view-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.sec-nav__view-name {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);  /* 14px */
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sec-nav__view-context {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);  /* 13px */
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-s);
+  color: var(--v9-ui-dimmed);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sec-nav__all-views {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-xs);
+  width: 100%;
+  padding: 10px var(--v9-space-m);
   border: none;
   border-radius: var(--v9-radius-m);
   background: none;
   font-family: var(--v9-font);
   font-size: var(--v9-font-size-m);
   font-weight: var(--v9-font-weight-regular);
-  color: var(--v9-ui-dimmed);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+  text-decoration: underline;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s;
 }
-.sec-nav__item:hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
-.sec-nav__item--active {
-  background: var(--v9-ui-hover);
-  font-weight: var(--v9-font-weight-strong);
-  color: var(--v9-ui-text);
-}
-.sec-nav__item:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
-
-.sec-nav__icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  color: var(--v9-ui-icon);
-}
-.sec-nav__label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sec-nav__chevron {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  margin-left: auto;
-  color: var(--v9-ui-icon);
-}
+.sec-nav__all-views:hover { background: var(--v9-ui-hover); }
 
 /* ── UserNav ──────────────────────────────────────────────────── */
 .user-nav {
