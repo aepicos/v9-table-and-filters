@@ -172,6 +172,42 @@ const previousPageLabel = computed(() =>
 )
 const secNavCollapsed = ref(false)
 
+// ── Save new view dialog ───────────────────────────────────────
+const saveViewDialogOpen = ref(false)
+const saveViewDialogRef = ref<HTMLElement | null>(null)
+const saveViewTriggerRef = ref<HTMLElement | null>(null)
+
+const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+
+watch(saveViewDialogOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    // Focus the dismiss button (first focusable element)
+    const first = saveViewDialogRef.value?.querySelector<HTMLElement>(FOCUSABLE)
+    first?.focus()
+  } else {
+    // Return focus to the trigger that opened the dialog
+    saveViewTriggerRef.value?.focus()
+  }
+})
+
+function handleDialogKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Tab') return
+  const dialog = saveViewDialogRef.value
+  if (!dialog) return
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    el => !el.closest('[hidden]') && el.offsetParent !== null
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus() }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus() }
+  }
+}
+
 // Which parent section stays open — AM stays open when a child of AM is selected
 const openSection = computed(() => {
   for (const page of secNavPages) {
@@ -515,9 +551,23 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
       <!-- Views section -->
       <div v-show="!secNavCollapsed" class="sec-nav__section sec-nav__section--sep">
-        <div class="sec-nav__section-hdr">
+        <div class="sec-nav__section-hdr sec-nav__section-hdr--views">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" class="sec-nav__section-icon" aria-hidden="true"><path d="M14.168 2.5H5.835c-.917 0-1.667.75-1.667 1.667V17.5l5.833-2.5 5.834 2.5V4.167c0-.917-.75-1.667-1.667-1.667m0 12.5-4.167-1.817L5.835 15V4.167h8.333z"/></svg>
           <span class="sec-nav__section-label">Views</span>
+          <!-- Save new view button -->
+          <div class="sec-nav__hdr-ibtn" style="margin-left: auto;">
+            <button
+              ref="saveViewTriggerRef"
+              class="sec-nav__hdr-ibtn-base"
+              aria-label="Save new view"
+              @click="saveViewDialogOpen = true"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/>
+              </svg>
+            </button>
+            <div class="sec-nav__hdr-tt" role="tooltip">Save new view</div>
+          </div>
         </div>
 
         <div class="sec-nav__view-list" ref="viewListRef">
@@ -701,6 +751,49 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
       </main>
     </div>
   </div>
+
+  <!-- ── Save new view dialog ─────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="overlay">
+      <div v-if="saveViewDialogOpen" class="snv-overlay" @click="saveViewDialogOpen = false" />
+    </Transition>
+    <Transition name="dialog">
+      <div
+        v-if="saveViewDialogOpen"
+        ref="saveViewDialogRef"
+        class="snv-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="snv-title"
+        @keydown.escape.stop="saveViewDialogOpen = false"
+        @keydown.tab="handleDialogKeydown"
+        @click.stop
+      >
+        <!-- Top bar -->
+        <div class="snv-dialog__top-bar">
+          <button class="snv-dialog__dismiss" aria-label="Dismiss" @click="saveViewDialogOpen = false">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Content (placeholder — to be filled in) -->
+        <div class="snv-dialog__content">
+          <h2 id="snv-title" class="snv-dialog__title">Save new view</h2>
+          <p class="snv-dialog__description">Configure and name your view to save it.</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="snv-dialog__footer">
+          <div class="snv-dialog__footer-right">
+            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="saveViewDialogOpen = false">Cancel</button>
+            <button class="snv-dialog__btn snv-dialog__btn--primary">Save view</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1696,4 +1789,213 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   display: flex;
   flex-direction: column;
 }
+
+/* ── Section header icon button (Views "Save new view") ───────── */
+.sec-nav__section-hdr--views {
+  padding-right: var(--v9-space-xxs); /* tighter right pad so button sits near the edge */
+}
+
+.sec-nav__hdr-ibtn {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sec-nav__hdr-ibtn-base {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: var(--v9-space-xs); /* 6px */
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  cursor: pointer;
+  color: var(--v9-ui-dimmed);
+  transition: background 0.1s, color 0.1s;
+}
+.sec-nav__hdr-ibtn-base:hover {
+  background: var(--v9-ui-hover);
+  color: var(--v9-ui-text);
+}
+.sec-nav__hdr-ibtn-base:focus-visible {
+  outline: 2px solid var(--v9-ui-focus);
+  outline-offset: -2px;
+}
+
+/* Tooltip — opens below the button */
+.sec-nav__hdr-tt {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  height: 28px;
+  padding: 0 var(--v9-space-s);
+  display: flex;
+  align-items: center;
+  background: var(--v9-tooltip-bg);
+  color: var(--v9-tooltip-text);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.1), 0px 4px 6px -2px rgba(0,0,0,0.06);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease 0.3s;
+  z-index: 500;
+}
+.sec-nav__hdr-ibtn:hover .sec-nav__hdr-tt { opacity: 1; }
+
+/* ── Overlay ──────────────────────────────────────────────────── */
+.snv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  backdrop-filter: blur(3px);
+  cursor: default;
+}
+.snv-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--v9-ui-bg);
+  opacity: 0.5;
+}
+.snv-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--v9-ui-text);
+  opacity: 0.1;
+}
+
+/* Overlay transition */
+.overlay-enter-active,
+.overlay-leave-active { transition: opacity 0.2s ease; }
+.overlay-enter-from,
+.overlay-leave-to { opacity: 0; }
+
+/* ── Dialog panel ─────────────────────────────────────────────── */
+.snv-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 201;
+  width: 512px;
+  background: var(--v9-ui-bg);
+  border-radius: var(--v9-radius-l);
+  box-shadow: 0px 20px 12.5px rgba(0,0,0,0.10), 0px 10px 5px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dialog transition — lifts up and fades in */
+.dialog-enter-active {
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dialog-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.dialog-enter-from {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 12px)) scale(0.96);
+}
+.dialog-leave-to {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 8px)) scale(0.97);
+}
+
+.snv-dialog__top-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--v9-space-m);
+}
+
+.snv-dialog__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  cursor: pointer;
+  color: var(--v9-ui-dimmed);
+  transition: background 0.1s, color 0.1s;
+}
+.snv-dialog__dismiss:hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+.snv-dialog__dismiss:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+.snv-dialog__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v9-space-m);
+  padding: 0 var(--v9-space-xxl) var(--v9-space-xxl) var(--v9-space-xxl);
+}
+
+.snv-dialog__title {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-xl);
+  font-weight: var(--v9-font-weight-strong);
+  line-height: var(--v9-line-height-l);
+  color: var(--v9-ui-text);
+}
+
+.snv-dialog__description {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+}
+
+.snv-dialog__footer {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--v9-ui-border-light);
+  padding: var(--v9-space-m) var(--v9-space-xxl);
+}
+
+.snv-dialog__footer-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-m);
+}
+
+.snv-dialog__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v9-space-xs);
+  height: 32px;
+  padding: 0 var(--v9-space-m);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.06);
+}
+.snv-dialog__btn--secondary {
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  color: var(--v9-ui-text);
+}
+.snv-dialog__btn--secondary:hover { background: var(--v9-ui-hover); }
+.snv-dialog__btn--secondary:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+.snv-dialog__btn--primary {
+  background: var(--v9-input-primary-bg);
+  border: 1px solid var(--v9-input-primary-bg);
+  color: var(--v9-input-primary-text);
+}
+.snv-dialog__btn--primary:hover { filter: brightness(1.1); }
+.snv-dialog__btn--primary:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
 </style>
