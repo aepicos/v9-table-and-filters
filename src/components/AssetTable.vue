@@ -1506,7 +1506,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
               aria-label="Row density"
               :options="[
                 {
-                  label: 'Loose',
+                  label: 'Comfortable',
                   value: 'comfortable',
                   icon: 'M22 22H2V2H22V22ZM4 20H20V13H4V20ZM4 11H20V4H4V11Z',
                   iconViewBox: '0 0 24 24',
@@ -1515,7 +1515,7 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
                   iconClipRule: 'evenodd',
                 },
                 {
-                  label: 'Tight',
+                  label: 'Compact',
                   value: 'compact',
                   icon: 'M22 22H2V2H22V22ZM4 20H20V16H4V20ZM4 14H20V10H4V14ZM4 8H20V4H4V8Z',
                   iconViewBox: '0 0 24 24',
