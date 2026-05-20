@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AssetManagementPage from './components/AssetManagementPage.vue'
+import SavedViewsPage from './components/SavedViewsPage.vue'
+import { useSavedViews } from './data/savedViews'
+
+const { pinnedViews } = useSavedViews()
 
 const navItems = [
   {
@@ -71,14 +75,19 @@ const secNavPages = [
   { label: 'Components', children: [] },
 ]
 
-const secNavViews = [
-  { label: 'Critical repos', context: 'Asset management • Repositories' },
-  { label: 'External APIs', context: 'Asset management • API' },
-  { label: 'High-risk packages', context: 'Asset management • Packages' },
-]
+// Pinned Inventory views shown in the sec-nav (other pages have their own nav contexts)
+const secNavViews = computed(() =>
+  pinnedViews.value
+    .filter(v => v.page === 'Inventory')
+    .map(v => ({ label: v.name, context: v.page }))
+)
 
 // Single selection across all pages + children
 const selectedItem = ref('Asset Management')
+const previousPage = ref('Asset Management')
+const previousPageLabel = computed(() =>
+  previousPage.value === 'Asset Management' ? 'Inventory' : previousPage.value
+)
 const secNavCollapsed = ref(false)
 
 // Which parent section stays open — AM stays open when a child of AM is selected
@@ -92,6 +101,9 @@ const openSection = computed(() => {
 
 // ── Page title (driven by selected nav item) ──────────────────
 const pageTitle = computed(() => {
+  if (selectedItem.value === 'all-views') {
+    return { crumbs: [] as string[], current: 'Views', sub: null as string | null }
+  }
   for (const page of secNavPages) {
     if (page.label === selectedItem.value) {
       // Special case: Asset Management at top level → show sub-label
@@ -138,7 +150,8 @@ function updateIndicator(animate: boolean) {
   indicatorReady.value = true
 }
 
-watch(selectedItem, async () => {
+watch(selectedItem, async (newVal, oldVal) => {
+  if (newVal === 'all-views') previousPage.value = oldVal
   await nextTick()
   updateIndicator(true)
   // Re-sync after children collapse so indicator lands correctly
@@ -208,7 +221,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   <div class="app-shell" style="background: var(--v9-ui-bg); font-family: var(--v9-font);">
 
     <!-- ── Primary nav (AppNav) ───────────────────────────────── -->
-    <aside ref="navRef" class="app-nav" :class="{ 'app-nav--sec-open': !secNavCollapsed }" aria-label="Primary navigation">
+    <aside ref="navRef" class="app-nav" :class="{ 'app-nav--sec-open': !secNavCollapsed && selectedItem !== 'all-views' }" aria-label="Primary navigation">
 
       <!-- Top: logo + main nav items -->
       <div class="app-nav__top">
@@ -228,7 +241,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
             v-for="item in navItems"
             :key="item.label"
             class="app-nav__item"
-            :class="{ 'app-nav__item--active': item.active }"
+            :class="{ 'app-nav__item--active': item.active && selectedItem !== 'all-views' }"
             :aria-label="item.label"
             :aria-current="item.active ? 'page' : undefined"
           >
@@ -314,7 +327,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </aside>
 
     <!-- ── Secondary nav ─────────────────────────────────────── -->
-    <aside class="sec-nav" :class="{ 'sec-nav--collapsed': secNavCollapsed }" aria-label="Secondary navigation">
+    <aside v-show="selectedItem !== 'all-views'" class="sec-nav" :class="{ 'sec-nav--collapsed': secNavCollapsed }" aria-label="Secondary navigation">
 
       <!-- Toggle button — hangs 12px outside the right border, centred with the Pages header -->
       <div class="sec-nav__toggle-wrap">
@@ -397,15 +410,19 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
         </div>
 
         <div class="sec-nav__view-list">
-          <button v-for="view in secNavViews" :key="view.label" class="sec-nav__view">
+          <button v-for="view in secNavViews" :key="view.label" class="sec-nav__view" @click="selectedItem = 'all-views'">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16" class="sec-nav__pin" aria-hidden="true"><path d="M5.909 1.194 1.194 5.91a.67.67 0 0 0 0 .942c.26.26.684.26.943 0l.472-.471 2.357 2.357a1.997 1.997 0 0 1 0 2.828l.942.943 2.815-2.814 3.3 3.3h.942v-.943l-3.3-3.3 2.843-2.842-.943-.943a1.997 1.997 0 0 1-2.828 0L6.38 2.609l.471-.472a.67.67 0 0 0 0-.943.67.67 0 0 0-.942 0"/></svg>
             <div class="sec-nav__view-text">
               <span class="sec-nav__view-name">{{ view.label }}</span>
               <span class="sec-nav__view-context">{{ view.context }}</span>
             </div>
           </button>
-          <button class="sec-nav__all-views">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <button
+            class="sec-nav__all-views"
+            :class="{ 'sec-nav__all-views--active': selectedItem === 'all-views' }"
+            @click="selectedItem = 'all-views'"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
               <circle cx="5" cy="10" r="1.5"/>
               <circle cx="10" cy="10" r="1.5"/>
               <circle cx="15" cy="10" r="1.5"/>
@@ -540,8 +557,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
       </div>
 
       <!-- Main content -->
-      <main id="main" tabindex="-1" class="app-page">
-        <AssetManagementPage :title="pageTitle" />
+      <main id="main" tabindex="-1" class="app-page" :class="{ 'app-page--views': selectedItem === 'all-views' }">
+        <SavedViewsPage v-if="selectedItem === 'all-views'" :previous-page-label="previousPageLabel" @back="selectedItem = previousPage" />
+        <AssetManagementPage v-else :title="pageTitle" />
       </main>
     </div>
   </div>
@@ -1176,6 +1194,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   text-align: left;
 }
 .sec-nav__all-views:hover { background: var(--v9-ui-hover); }
+.sec-nav__all-views--active {
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  font-weight: var(--v9-font-weight-strong);
+}
 
 /* ── UserNav ──────────────────────────────────────────────────── */
 .user-nav {
@@ -1489,5 +1513,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 .app-page {
   flex: 1;
   min-width: 0;
+}
+.app-page--views {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

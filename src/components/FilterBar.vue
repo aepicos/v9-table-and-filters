@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { FILTERS, type FilterChip, type AdvancedQuery, type FilterGroup as FilterGroupData } from '../data/filters'
+import { FILTERS, type FilterChip, type AdvancedQuery, type FilterGroup as FilterGroupData, type FilterDef } from '../data/filters'
 import FilterChipComponent from './FilterChip.vue'
 import FilterMenu from './FilterMenu.vue'
 import FilterQueryMenu from './FilterQueryMenu.vue'
@@ -10,6 +10,10 @@ import FilterGroupOperator from './FilterGroupOperator.vue'
 const props = defineProps<{
   filters: FilterChip[]
   advancedQuery: AdvancedQuery | null
+  /** Custom filter definitions. Falls back to global FILTERS when omitted. */
+  filterDefs?: FilterDef[]
+  /** Hides the Advanced filter button (useful for simple use-cases). */
+  simple?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +24,8 @@ const emit = defineEmits<{
   'apply-advanced': [query: AdvancedQuery]
   'clear-advanced': []
 }>()
+
+const activeDefs = computed(() => props.filterDefs ?? FILTERS)
 
 // ── Popover state ─────────────────────────────────────────────────────────────
 
@@ -93,7 +99,7 @@ function closeAll() {
 // ── Filter menu → add chip ────────────────────────────────────────────────────
 
 function onMenuSelect(filterId: string, value: string, operator: string) {
-  const def = FILTERS.find(f => f.id === filterId)
+  const def = activeDefs.value.find(f => f.id === filterId)
   const label = def?.label ?? value
   emit('add', {
     id: Math.random().toString(36).slice(2, 9),
@@ -108,7 +114,7 @@ function onMenuSelect(filterId: string, value: string, operator: string) {
 
 function onMenuSelectMany(chips: { filterId: string; value: string; operator: string }[]) {
   for (const { filterId, value, operator } of chips) {
-    const def = FILTERS.find(f => f.id === filterId)
+    const def = activeDefs.value.find(f => f.id === filterId)
     const label = def?.label ?? value
     emit('add', {
       id: Math.random().toString(36).slice(2, 9),
@@ -260,6 +266,7 @@ const activeValuesByFilter = computed(() => {
       :style="filterMenuPos"
     >
       <FilterMenu
+        :filter-defs="activeDefs"
         :active-values="activeValuesByFilter"
         @select="onMenuSelect"
         @select-many="onMenuSelectMany"
@@ -276,7 +283,7 @@ const activeValuesByFilter = computed(() => {
       :style="queryMenuPos"
     >
       <FilterQueryMenu
-        :filter-defs="FILTERS"
+        :filter-defs="activeDefs"
         :initial-groups="queryMenuInitialGroups"
         :initial-group-operator="queryMenuInitialGroupOperator"
         @apply="onApplyAdvanced"
@@ -304,7 +311,7 @@ const activeValuesByFilter = computed(() => {
           v-for="chip in filters"
           :key="chip.id"
           :chip="chip"
-          :filter-def="FILTERS.find(f => f.id === chip.filterId)"
+          :filter-def="activeDefs.find(f => f.id === chip.filterId)"
           :active-values="activeValuesByFilter[chip.filterId ?? '']"
           @remove="$emit('remove', chip.id)"
           @update-operator="(op) => $emit('set-operator', chip.id, op)"
@@ -332,6 +339,7 @@ const activeValuesByFilter = computed(() => {
 
       <!-- Tune — direct child of v9-bar, pinned block-start at the trailing edge -->
       <button
+        v-if="!simple"
         ref="tuneBtnRef"
         class="v9-btn v9-btn--s v9-btn--subtle v9-btn--icon-left v9-bar__tune"
         :class="{ 'v9-btn--active': showQueryMenu }"
@@ -365,7 +373,7 @@ const activeValuesByFilter = computed(() => {
           <!-- Group: chips + intra-group operators -->
           <FilterGroup
             :group="group"
-            :filter-defs="FILTERS"
+            :filter-defs="activeDefs"
             @toggle-operator="toggleAdvancedGroupOperator(group.id)"
             @remove-condition="(cId) => removeAdvancedCondition(group.id, cId)"
           />

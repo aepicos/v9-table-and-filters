@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { FILTERS, type FilterDef, type FilterPreset } from '../data/filters'
+import { computed as _computed } from 'vue'
 
 const props = defineProps<{
   // map of filterId → already-applied values, so duplicates can be disabled
   activeValues?: Record<string, string[]>
+  // custom filter definitions; falls back to global FILTERS if omitted
+  filterDefs?: FilterDef[]
 }>()
 
 const emit = defineEmits<{
@@ -58,12 +61,14 @@ const isTextEntry = computed(() =>
   !selectedKey.value.values?.length
 )
 
+const activeDefs = _computed(() => props.filterDefs ?? FILTERS)
+
 // In text entry mode, never filter the keys list — the user is typing a value not searching
 const filteredKeys = computed(() => {
-  if (isTextEntry.value) return FILTERS
+  if (isTextEntry.value) return activeDefs.value
   const q = search.value.trim().toLowerCase()
-  if (!q) return FILTERS
-  return FILTERS.filter(f => f.label.toLowerCase().includes(q))
+  if (!q) return activeDefs.value
+  return activeDefs.value.filter(f => f.label.toLowerCase().includes(q))
 })
 
 // AI card: search has text, no key matches, nothing selected
@@ -201,7 +206,7 @@ const ghostSuggestion = computed((): string => {
   // Key aliases are intentionally excluded — they are abbreviations for the AI
   // parser and would produce ghost suggestions like "lang" instead of "Language".
   const candidates: string[] = [
-    ...FILTERS.map(f => f.label),
+    ...activeDefs.value.map(f => f.label),
     ...(selectedKey.value?.values ?? []),
   ]
 
@@ -428,7 +433,7 @@ function tryStructuredParse(text: string): AiChip[] {
 
   for (let i = 0; i < keys.length; i++) {
     const kp     = keys[i]
-    const filter = FILTERS.find(f => f.id === kp.filterId)
+    const filter = activeDefs.value.find(f => f.id === kp.filterId)
     if (!filter) continue
 
     const chunkEnd = keys[i + 1]?.start ?? text.length
@@ -471,7 +476,7 @@ function valueOnlyScan(text: string): AiChip[] {
   while (remaining.trim()) {
     let best: { filter: FilterDef; val: string; start: number; len: number } | null = null
 
-    for (const filter of FILTERS) {
+    for (const filter of activeDefs.value) {
       if (!filter.values?.length) continue
       for (const val of filter.values) {
         const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
