@@ -289,7 +289,7 @@ const activeValuesByFilter = computed(() => {
 
     <!-- Leading filter icon — decorative; label is on the toolbar -->
     <div class="v9-bar__icon-box" aria-hidden="true">
-      <svg viewBox="0 0 24 24" :width="16" :height="16" fill="currentColor">
+      <svg viewBox="0 0 24 24" :width="20" :height="20" fill="currentColor">
         <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
       </svg>
     </div>
@@ -339,7 +339,7 @@ const activeValuesByFilter = computed(() => {
         :aria-expanded="showQueryMenu"
         @click="openQueryMenu"
       >
-        <svg viewBox="0 0 24 24" :width="16" :height="16" aria-hidden="true">
+        <svg viewBox="0 0 24 24" :width="20" :height="20" aria-hidden="true">
           <path d="M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z" fill="currentColor"/>
         </svg>
         <span>Advanced filter</span>
@@ -382,7 +382,7 @@ const activeValuesByFilter = computed(() => {
           :aria-expanded="showQueryMenu"
           @click="openQueryMenu"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
             <path d="M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z"/>
           </svg>
         </button>

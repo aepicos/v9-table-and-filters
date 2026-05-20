@@ -324,11 +324,11 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           :aria-label="secNavCollapsed ? 'Show menu' : 'Hide menu'"
         >
           <!-- push_left when expanded -->
-          <svg v-if="!secNavCollapsed" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <svg v-if="!secNavCollapsed" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
             <path d="M3 18H16V16H3V18ZM3 13H13V11H3V13ZM3 6V8H16V6H3ZM21 15.59L17.42 12L21 8.41L19.59 7L14.59 12L19.59 17L21 15.59Z"/>
           </svg>
           <!-- push_right when collapsed -->
-          <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <svg v-else viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
             <path d="M21 6H8V8H21V6ZM21 11H11V13H21V11ZM21 18V16H8V18H21ZM3 8.41L6.58 12L3 15.59L4.41 17L9.41 12L4.41 7L3 8.41Z"/>
           </svg>
         </button>
@@ -429,7 +429,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- Tenant (selected, non-interactive) -->
           <div class="scope-sel__item scope-sel__item--active" role="status" aria-label="Tenant: Snyk">
             <span class="scope-sel__icon-wrap" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20">
                 <path d="m7.999 3.793 3.333 3V12H9.999V8h-4v4H4.665V6.793zm0-1.793L1.332 8h2v5.333h4v-4h1.333v4h4V8h2z"/>
               </svg>
             </span>
@@ -441,7 +441,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- Group -->
           <button class="scope-sel__item" aria-label="Group: All groups">
             <span class="scope-sel__icon-wrap" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20">
                 <path d="M11.333 7.333V2H4.667v2.667H2V14h5.333v-2.667h1.334V14H14V7.333zm-6.666 5.334H3.333v-1.334h1.334zm0-2.667H3.333V8.667h1.334zm0-2.667H3.333V6h1.334zM7.333 10H6V8.667h1.333zm0-2.667H6V6h1.333zm0-2.666H6V3.333h1.333zM10 10H8.667V8.667H10zm0-2.667H8.667V6H10zm0-2.666H8.667V3.333H10zm2.667 8h-1.334v-1.334h1.334zm0-2.667h-1.334V8.667h1.334z"/>
               </svg>
             </span>
@@ -453,7 +453,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- Organisation -->
           <button class="scope-sel__item" aria-label="Organisation: All organizations">
             <span class="scope-sel__icon-wrap" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20">
                 <path d="M2.667 8.667C3.4 8.667 4 8.067 4 7.333 4 6.6 3.4 6 2.667 6c-.734 0-1.334.6-1.334 1.333 0 .734.6 1.334 1.334 1.334m.753.733a4.7 4.7 0 0 0-.753-.067c-.66 0-1.287.14-1.854.387A1.34 1.34 0 0 0 0 10.953V12h3v-1.073c0-.554.153-1.074.42-1.527m9.913-.733c.734 0 1.334-.6 1.334-1.334 0-.733-.6-1.333-1.334-1.333C12.6 6 12 6.6 12 7.333c0 .734.6 1.334 1.333 1.334M16 10.953c0-.54-.32-1.02-.813-1.233a4.6 4.6 0 0 0-1.854-.387c-.26 0-.506.027-.753.067.267.453.42.973.42 1.527V12h3zM10.827 9.1c-.78-.347-1.74-.6-2.827-.6s-2.047.26-2.827.6A1.99 1.99 0 0 0 4 10.927V12h8v-1.073c0-.787-.453-1.507-1.173-1.827M5.38 10.667c.06-.154.087-.26.607-.46A5.5 5.5 0 0 1 8 9.833c.687 0 1.367.12 2.013.374.514.2.54.306.607.46zM8 5.333c.367 0 .667.3.667.667s-.3.667-.667.667A.67.67 0 0 1 7.333 6c0-.367.3-.667.667-.667M8 4c-1.107 0-2 .893-2 2s.893 2 2 2 2-.893 2-2-.893-2-2-2"/>
               </svg>
             </span>
@@ -466,7 +466,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- Search icon button -->
           <div class="user-nav__ibtn">
             <button class="user-nav__ibtn-base" aria-label="Search">
-              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20" aria-hidden="true">
                 <path d="M10.333 9.333h-.526l-.187-.18a4.3 4.3 0 0 0 1.047-2.82 4.333 4.333 0 1 0-4.334 4.334c1.074 0 2.06-.394 2.82-1.047l.18.187v.526l3.334 3.327.993-.993zm-4 0c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3"/>
               </svg>
             </button>
@@ -479,7 +479,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- Notifications icon button -->
           <div class="user-nav__ibtn">
             <button class="user-nav__ibtn-base" aria-label="Notifications">
-              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20" aria-hidden="true">
                 <path d="M8.001 14.667c.734 0 1.334-.6 1.334-1.333H6.668c0 .733.6 1.333 1.333 1.333m4-4V7.334c0-2.047-1.086-3.76-3-4.214v-.453c0-.553-.446-1-1-1-.553 0-1 .447-1 1v.453c-1.906.454-3 2.16-3 4.214v3.333L2.668 12v.667h10.667V12zm-1.333.667H5.335v-4c0-1.654 1.006-3 2.666-3s2.667 1.346 2.667 3z"/>
               </svg>
             </button>
@@ -1433,12 +1433,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   outline-offset: -2px;
 }
 
-/* 12px-wide icon wrapper — clips left 4px of the 16px icon (matches Figma) */
+/* 16px-wide icon wrapper — clips left 4px of the 20px icon */
 .scope-sel__icon-wrap {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: 12px;
+  width: 16px;
   height: 20px;
   overflow: hidden;
   flex-shrink: 0;
