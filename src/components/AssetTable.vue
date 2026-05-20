@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FilterChip, FilterCondition, AdvancedQuery } from '../data/filters'
+import type { ViewState } from '../data/savedViews'
 import type { AssetItem as AssetItemType } from '../data/assets'
 import { assetPath } from '../data/assets'
 import { DATASET, COVERAGE_ABBREV, COVERAGE_TYPES } from '../data/mockAssets'
@@ -20,6 +21,11 @@ const props = defineProps<{
   search?: string
   filters?: FilterChip[]
   advancedQuery?: AdvancedQuery | null
+  initialState?: ViewState
+}>()
+
+const emit = defineEmits<{
+  (e: 'state-changed'): void
 }>()
 
 /* ============================================================
@@ -249,9 +255,13 @@ type SelMode = 'none' | 'some' | 'all'
 type Density = 'comfortable' | 'compact'
 type SortDir = 'asc' | 'desc'
 
-const columns = ref<ColDef[]>(INITIAL_COLUMNS.map((c) => ({ ...c })))
-const density = ref<Density>('comfortable')
-const groupBy = ref<string | null>(null)
+const columns = ref<ColDef[]>(
+  props.initialState?.visibleColumns
+    ? INITIAL_COLUMNS.map(c => ({ ...c, visible: props.initialState!.visibleColumns!.includes(c.id) }))
+    : INITIAL_COLUMNS.map(c => ({ ...c }))
+)
+const density = ref<Density>(props.initialState?.density ?? 'comfortable')
+const groupBy = ref<string | null>(props.initialState?.groupBy ?? null)
 const GROUP_BY_LABELS: Record<string, string> = {
   assetClass: 'Class',
   team: 'Team',
@@ -259,8 +269,8 @@ const GROUP_BY_LABELS: Record<string, string> = {
   environment: 'Environment',
 }
 const groupByLabel = computed(() => groupBy.value ? (GROUP_BY_LABELS[groupBy.value] ?? 'Groups') : 'Groups')
-const sortCol = ref<ColId | null>('riskScore')
-const sortDir = ref<SortDir>('desc')
+const sortCol = ref<ColId | null>((props.initialState?.sortCol ?? 'riskScore') as ColId | null)
+const sortDir = ref<SortDir>(props.initialState?.sortDir ?? 'desc')
 const groupSortCol = ref<string>('follow')
 const groupSortDir = ref<SortDir>('asc')
 const sortPopoverOpen = ref(false)
@@ -954,9 +964,23 @@ function handleKeyEsc(e: KeyboardEvent) {
 
 let scrollWrapperRo: ResizeObserver | null = null
 
+// Emit state-changed whenever the user mutates view-relevant state after mount.
+// We set _tableMounted inside onMounted to avoid emitting for initial seeding.
+let _tableMounted = false
+watch([sortCol, sortDir, groupBy, density], () => {
+  if (_tableMounted) emit('state-changed')
+})
+watch(columns, () => {
+  if (_tableMounted) emit('state-changed')
+}, { deep: true })
+
 onMounted(() => {
-  // Initial load
-  loadMoreFlat()
+  // Initial load — respect pre-set groupBy from initialState
+  if (groupBy.value) {
+    loadGroupMeta(groupBy.value)
+  } else {
+    loadMoreFlat()
+  }
   nextTick(() => setupMainObserver())
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeyEsc)
@@ -969,6 +993,9 @@ onMounted(() => {
     scrollWrapperRo = new ResizeObserver(update)
     scrollWrapperRo.observe(el)
   })
+
+  // Enable state-change tracking only after initial state has been applied
+  nextTick(() => { _tableMounted = true })
 })
 
 onUnmounted(() => {

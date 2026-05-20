@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'back'): void
+  (e: 'navigate-to-view', view: SavedView): void
 }>()
 
 const { views, togglePin, deleteView } = useSavedViews()
@@ -174,6 +175,12 @@ function handleDelete(id: string) {
   activeActionsId.value = null
 }
 
+// ── Row click ─────────────────────────────────────────────────────
+
+function handleRowClick(view: SavedView) {
+  emit('navigate-to-view', view)
+}
+
 // ── Outside click ──────────────────────────────────────────────────
 
 function onOutside(e: MouseEvent) {
@@ -325,26 +332,31 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
                     <span class="svp-group-count">{{ groupRows.length }}</span>
                   </td>
                 </tr>
-                <tr v-for="view in groupRows" :key="view.id" class="svp-row">
+                <tr v-for="view in groupRows" :key="view.id" class="svp-row" @click="handleRowClick(view)">
                   <td class="svp-td svp-td--pin">
-                    <button class="svp-icon-btn" :class="{ 'svp-icon-btn--pinned': view.pinned }" :aria-label="view.pinned ? 'Unpin view' : 'Pin view'" :aria-pressed="view.pinned" @click="togglePin(view.id)">
+                    <button class="svp-icon-btn" :class="{ 'svp-icon-btn--pinned': view.pinned }" :aria-label="view.pinned ? 'Unpin view' : 'Pin view'" :aria-pressed="view.pinned" @click.stop="togglePin(view.id)">
                       <svg v-if="!view.pinned" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/></svg>
                       <svg v-else fill="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m8.863 1.792-7.071 7.07a1.003 1.003 0 0 0 0 1.415 1.003 1.003 0 0 0 1.414 0l.707-.707 3.536 3.535a2.996 2.996 0 0 1 0 4.243l1.414 1.414 4.221-4.221 4.95 4.95h1.414v-1.415l-4.95-4.95 4.264-4.263-1.414-1.414a2.996 2.996 0 0 1-4.243 0L9.57 3.913l.707-.707a1.003 1.003 0 0 0 0-1.414 1.003 1.003 0 0 0-1.414 0"/></svg>
                     </button>
                   </td>
-                  <td class="svp-td"><span class="svp-name">{{ view.name }}</span></td>
-                  <td class="svp-td"><span class="svp-meta">{{ view.page }}</span></td>
+                  <td class="svp-td"><button class="svp-name-link">{{ view.name }}</button></td>
+                  <td class="svp-td"><span class="svp-path">
+                    <template v-for="(segment, i) in view.path" :key="i">
+                      <span :class="i === view.path.length - 1 ? 'svp-path__seg svp-path__seg--last' : 'svp-path__seg'">{{ segment }}</span>
+                      <span v-if="i < view.path.length - 1" class="svp-path__sep" aria-hidden="true">/</span>
+                    </template>
+                  </span></td>
                   <td class="svp-td"><span class="svp-meta">{{ SCOPE_LABELS[view.scope] }}</span></td>
                   <td class="svp-td"><span class="svp-meta">{{ view.createdBy === currentUser ? 'Me' : view.createdBy }}</span></td>
                   <td class="svp-td"><span class="svp-meta svp-meta--dimmed">{{ formatRelativeDate(view.createdAt) }}</span></td>
                   <td class="svp-td svp-td--summary">
-                    <button class="svp-summary-btn" :class="{ 'svp-summary-btn--active': activeSummaryId === view.id }" data-summary-trigger :aria-expanded="activeSummaryId === view.id" aria-haspopup="true" @click="openSummary(view.id, $event)">
+                    <button class="svp-summary-btn" :class="{ 'svp-summary-btn--active': activeSummaryId === view.id }" data-summary-trigger :aria-expanded="activeSummaryId === view.id" aria-haspopup="true" @click.stop="openSummary(view.id, $event)">
                       <span class="svp-summary-text">{{ view.summary }}</span>
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true" class="svp-summary-chevron"><path d="M4 6l4 4 4-4"/></svg>
                     </button>
                   </td>
                   <td class="svp-td svp-td--actions">
-                    <button class="svp-icon-btn" aria-label="View actions" data-actions-trigger :aria-expanded="activeActionsId === view.id" @click="openActions(view.id, $event)">
+                    <button class="svp-icon-btn" aria-label="View actions" data-actions-trigger :aria-expanded="activeActionsId === view.id" @click.stop="openActions(view.id, $event)">
                       <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true"><circle cx="10" cy="4.5" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="15.5" r="1.5"/></svg>
                     </button>
                   </td>
@@ -354,7 +366,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 
             <!-- Flat mode -->
             <template v-else>
-            <tr v-for="view in sortedFilteredViews" :key="view.id" class="svp-row">
+            <tr v-for="view in sortedFilteredViews" :key="view.id" class="svp-row" @click="handleRowClick(view)">
 
               <!-- Pinned -->
               <td class="svp-td svp-td--pin">
@@ -363,7 +375,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
                   :class="{ 'svp-icon-btn--pinned': view.pinned }"
                   :aria-label="view.pinned ? 'Unpin view' : 'Pin view'"
                   :aria-pressed="view.pinned"
-                  @click="togglePin(view.id)"
+                  @click.stop="togglePin(view.id)"
                 >
                   <svg v-if="!view.pinned" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
                     <path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/>
@@ -376,12 +388,17 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 
               <!-- Name -->
               <td class="svp-td">
-                <span class="svp-name">{{ view.name }}</span>
+                <button class="svp-name-link">{{ view.name }}</button>
               </td>
 
               <!-- Page -->
               <td class="svp-td">
-                <span class="svp-meta">{{ view.page }}</span>
+                <span class="svp-path">
+                    <template v-for="(segment, i) in view.path" :key="i">
+                      <span :class="i === view.path.length - 1 ? 'svp-path__seg svp-path__seg--last' : 'svp-path__seg'">{{ segment }}</span>
+                      <span v-if="i < view.path.length - 1" class="svp-path__sep" aria-hidden="true">/</span>
+                    </template>
+                  </span>
               </td>
 
               <!-- Scope -->
@@ -407,7 +424,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
                   data-summary-trigger
                   :aria-expanded="activeSummaryId === view.id"
                   aria-haspopup="true"
-                  @click="openSummary(view.id, $event)"
+                  @click.stop="openSummary(view.id, $event)"
                 >
                   <span class="svp-summary-text">{{ view.summary }}</span>
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -425,7 +442,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
                   aria-label="View actions"
                   data-actions-trigger
                   :aria-expanded="activeActionsId === view.id"
-                  @click="openActions(view.id, $event)"
+                  @click.stop="openActions(view.id, $event)"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
                     <circle cx="10" cy="4.5" r="1.5"/>
@@ -633,7 +650,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 /* Column widths */
 .svp-th--pin        { width: 44px;  padding-right: 0; }
 .svp-th--name       { min-width: 160px; }
-.svp-th--page       { width: 130px; }
+.svp-th--page       { width: 260px; }
 .svp-th--scope      { width: 100px; }
 .svp-th--created-by { width: 140px; }
 .svp-th--created    { width: 130px; }
@@ -684,6 +701,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 .svp-row {
   border-bottom: 1px solid var(--v9-ui-border-light);
   transition: background 0.1s;
+  cursor: pointer;
 }
 .svp-row:last-child { border-bottom: none; }
 .svp-row:hover { background: var(--v9-ui-hover); }
@@ -702,13 +720,21 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 .svp-td--actions { padding-left: 0; width: 44px; }
 
 /* ── Cell contents ───────────────────────────────────────────────── */
-.svp-name {
-  font-weight: var(--v9-font-weight-strong);
+.svp-name-link {
+  font-family: var(--v9-font);
+  color: var(--v9-ui-text);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
   display: block;
 }
+.svp-name-link:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: 2px; border-radius: 2px; }
 .svp-meta {
   white-space: nowrap;
   overflow: hidden;
@@ -716,6 +742,30 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   display: block;
 }
 .svp-meta--dimmed { color: var(--v9-ui-dimmed); }
+
+.svp-path {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.svp-path__seg {
+  color: var(--v9-ui-dimmed);
+  font-size: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.svp-path__seg--last {
+  color: var(--v9-ui-text);
+  flex-shrink: 0;
+}
+.svp-path__sep {
+  color: var(--v9-ui-border);
+  flex-shrink: 0;
+}
 
 /* ── Icon buttons ────────────────────────────────────────────────── */
 .svp-icon-btn {

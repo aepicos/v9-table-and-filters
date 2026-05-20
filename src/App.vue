@@ -2,9 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AssetManagementPage from './components/AssetManagementPage.vue'
 import SavedViewsPage from './components/SavedViewsPage.vue'
-import { useSavedViews } from './data/savedViews'
+import { useSavedViews, type SavedView, type ViewState } from './data/savedViews'
 
-const { pinnedViews } = useSavedViews()
+const { views, pinnedViews, togglePin } = useSavedViews()
 
 const navItems = [
   {
@@ -75,16 +75,98 @@ const secNavPages = [
   { label: 'Components', children: [] },
 ]
 
-// Pinned Inventory views shown in the sec-nav (other pages have their own nav contexts)
-const secNavViews = computed(() =>
-  pinnedViews.value
-    .filter(v => v.page === 'Inventory')
-    .map(v => ({ label: v.name, context: v.page }))
-)
+// ── Temp view — an unpinned view that's temporarily visible in the sec-nav
+// while it's selected. Disappears on deselect/state-change unless pinned first.
+const tempViewId = ref<string | null>(null)
+
+// Views shown in the sec-nav: pinned views for current page + temp view (if any)
+const secNavViews = computed(() => {
+  const target = selectedItem.value.toLowerCase()
+  const pinned = pinnedViews.value.filter(
+    v => v.path[v.path.length - 1]?.toLowerCase() === target
+  )
+  if (tempViewId.value) {
+    const temp = views.value.find(v => v.id === tempViewId.value)
+    if (temp && !temp.pinned) return [...pinned, temp]
+  }
+  return pinned
+})
+
+// ── Active view (selected in sec-nav) ─────────────────────────
+const activeViewId = ref<string | null>(null)
+
+// Apply a view from the sec-nav button
+function applyView(view: SavedView) {
+  navigateToView(view)
+}
+
+// Toggle pin and clear tempViewId if the view just became pinned
+function handlePinToggle(viewId: string) {
+  togglePin(viewId)
+  if (viewId === tempViewId.value) {
+    const v = views.value.find(v => v.id === viewId)
+    // After toggle: if now pinned, it's a permanent entry — clear temp slot
+    if (v?.pinned) tempViewId.value = null
+  }
+}
+
+// ── View indicator (sliding background for selected view) ─────
+const viewListRef = ref<HTMLElement | null>(null)
+const viewButtonRefs: Record<string, HTMLElement> = {}
+const viewIndicatorY = ref(0)
+const viewIndicatorH = ref(36)
+const viewIndicatorReady = ref(false)
+const viewIndicatorAnimate = ref(false)
+
+const viewIndicatorStyle = computed(() => ({
+  top:    `${viewIndicatorY.value}px`,
+  height: `${viewIndicatorH.value}px`,
+  opacity: viewIndicatorReady.value && activeViewId.value ? '1' : '0',
+  transition: viewIndicatorAnimate.value
+    ? 'top 0.18s cubic-bezier(0.4,0,0.2,1), height 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.1s'
+    : 'opacity 0.1s',
+}))
+
+function updateViewIndicator(animate: boolean) {
+  if (!activeViewId.value) return
+  const btn = viewButtonRefs[activeViewId.value]
+  const list = viewListRef.value
+  if (!btn || !list) return
+  const listRect = list.getBoundingClientRect()
+  const btnRect  = btn.getBoundingClientRect()
+  viewIndicatorAnimate.value = animate
+  viewIndicatorY.value = btnRect.top - listRect.top
+  viewIndicatorH.value = btnRect.height
+  viewIndicatorReady.value = true
+}
 
 // Single selection across all pages + children
 const selectedItem = ref('Asset Management')
 const previousPage = ref('Asset Management')
+const activeViewState = ref<ViewState | null>(null)
+const viewStateKey = ref(0)
+
+function pathToSelectedItem(path: string[]): string {
+  if (path.length === 0) return 'Asset Management'
+  const last = path[path.length - 1].toLowerCase()
+  for (const page of secNavPages) {
+    if (page.label.toLowerCase() === last) return page.label
+    for (const child of (page.children as any[])) {
+      if (child.label.toLowerCase() === last) return child.label
+    }
+  }
+  return 'Asset Management'
+}
+
+function navigateToView(view: SavedView) {
+  // Set view IDs before changing selectedItem so the selectedItem watch
+  // sees them already set and doesn't clear them.
+  activeViewId.value = view.id
+  tempViewId.value = view.pinned ? null : view.id
+  activeViewState.value = view.state ?? null
+  viewStateKey.value++
+  selectedItem.value = pathToSelectedItem(view.path)
+}
 const previousPageLabel = computed(() =>
   previousPage.value === 'Asset Management' ? 'Inventory' : previousPage.value
 )
@@ -152,6 +234,21 @@ function updateIndicator(animate: boolean) {
 
 watch(selectedItem, async (newVal, oldVal) => {
   if (newVal === 'all-views') previousPage.value = oldVal
+
+  // If the user clicked a nav item (not a view), clear active/temp view state.
+  // We check against all views (not just pinned) since temp views are unpinned.
+  if (activeViewId.value) {
+    const av = views.value.find(v => v.id === activeViewId.value)
+    if (!av || pathToSelectedItem(av.path) !== newVal) {
+      activeViewId.value = null
+      // Also evict the temp slot — it belongs to the old page context
+      if (tempViewId.value) {
+        const tv = views.value.find(v => v.id === tempViewId.value)
+        if (!tv || pathToSelectedItem(tv.path) !== newVal) tempViewId.value = null
+      }
+    }
+  }
+
   await nextTick()
   updateIndicator(true)
   // Re-sync after children collapse so indicator lands correctly
@@ -161,6 +258,20 @@ watch(selectedItem, async (newVal, oldVal) => {
     updateIndicator(false)
   }, 220)
 })
+
+watch(activeViewId, async () => {
+  await nextTick()
+  updateViewIndicator(true)
+})
+
+function onStateChanged() {
+  activeViewId.value = null
+  // Evict the temp view if it's still unpinned (user edited it away)
+  if (tempViewId.value) {
+    const tv = views.value.find(v => v.id === tempViewId.value)
+    if (!tv || !tv.pinned) tempViewId.value = null
+  }
+}
 
 function onChildrenEnter(el: Element) {
   const e = el as HTMLElement
@@ -409,14 +520,41 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <span class="sec-nav__section-label">Views</span>
         </div>
 
-        <div class="sec-nav__view-list">
-          <button v-for="view in secNavViews" :key="view.label" class="sec-nav__view" @click="selectedItem = 'all-views'">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16" class="sec-nav__pin" aria-hidden="true"><path d="M5.909 1.194 1.194 5.91a.67.67 0 0 0 0 .942c.26.26.684.26.943 0l.472-.471 2.357 2.357a1.997 1.997 0 0 1 0 2.828l.942.943 2.815-2.814 3.3 3.3h.942v-.943l-3.3-3.3 2.843-2.842-.943-.943a1.997 1.997 0 0 1-2.828 0L6.38 2.609l.471-.472a.67.67 0 0 0 0-.943.67.67 0 0 0-.942 0"/></svg>
+        <div class="sec-nav__view-list" ref="viewListRef">
+          <!-- Sliding selected-view indicator -->
+          <div class="sec-nav__view-indicator" :style="viewIndicatorStyle" aria-hidden="true" />
+
+          <div
+            v-for="view in secNavViews"
+            :key="view.id"
+            class="sec-nav__view"
+            :class="{ 'sec-nav__view--active': activeViewId === view.id }"
+            :ref="(el: any) => { if (el) viewButtonRefs[view.id] = el }"
+            role="button"
+            tabindex="0"
+            @click="applyView(view)"
+            @keydown.enter.prevent="applyView(view)"
+            @keydown.space.prevent="applyView(view)"
+          >
+            <!-- Pin toggle — outline when unpinned, filled when pinned -->
+            <button
+              class="sec-nav__pin-btn"
+              :class="{ 'sec-nav__pin-btn--pinned': view.pinned }"
+              :aria-label="view.pinned ? 'Unpin view' : 'Pin view'"
+              :aria-pressed="view.pinned"
+              @click.stop="handlePinToggle(view.id)"
+            >
+              <svg v-if="!view.pinned" fill="currentColor" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                <path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/>
+              </svg>
+              <svg v-else fill="currentColor" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="m8.863 1.792-7.071 7.07a1.003 1.003 0 0 0 0 1.415 1.003 1.003 0 0 0 1.414 0l.707-.707 3.536 3.535a2.996 2.996 0 0 1 0 4.243l1.414 1.414 4.221-4.221 4.95 4.95h1.414v-1.415l-4.95-4.95 4.264-4.263-1.414-1.414a2.996 2.996 0 0 1-4.243 0L9.57 3.913l.707-.707a1.003 1.003 0 0 0 0-1.414 1.003 1.003 0 0 0-1.414 0"/>
+              </svg>
+            </button>
             <div class="sec-nav__view-text">
-              <span class="sec-nav__view-name">{{ view.label }}</span>
-              <span class="sec-nav__view-context">{{ view.context }}</span>
+              <span class="sec-nav__view-name">{{ view.name }}</span>
             </div>
-          </button>
+          </div>
           <button
             class="sec-nav__all-views"
             :class="{ 'sec-nav__all-views--active': selectedItem === 'all-views' }"
@@ -558,8 +696,8 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
       <!-- Main content -->
       <main id="main" tabindex="-1" class="app-page" :class="{ 'app-page--views': selectedItem === 'all-views' }">
-        <SavedViewsPage v-if="selectedItem === 'all-views'" :previous-page-label="previousPageLabel" @back="selectedItem = previousPage" />
-        <AssetManagementPage v-else :title="pageTitle" />
+        <SavedViewsPage v-if="selectedItem === 'all-views'" :previous-page-label="previousPageLabel" @back="selectedItem = previousPage" @navigate-to-view="navigateToView" />
+        <AssetManagementPage v-else :key="viewStateKey" :title="pageTitle" :initial-state="activeViewState ?? undefined" @state-changed="onStateChanged" />
       </main>
     </div>
   </div>
@@ -1123,30 +1261,69 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
 /* ── Views section ──────────────────────────────────────────── */
 .sec-nav__view-list {
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
 }
 
+/* Sliding selected-view indicator — same visual style as page indicator */
+.sec-nav__view-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .sec-nav__view {
+  position: relative;
+  z-index: 3;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--v9-space-xs); /* 6px */
   width: 100%;
-  padding: var(--v9-space-m); /* 12px */
+  padding: var(--v9-space-xs) var(--v9-space-s); /* tighter than before to fit pin btn */
+  border-radius: var(--v9-radius-m);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+  /* remove the old outline — focus goes to inner pin btn or the row itself */
+}
+.sec-nav__view:not(.sec-nav__view--active):hover { background: var(--v9-ui-hover); }
+.sec-nav__view:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; border-radius: var(--v9-radius-m); }
+.sec-nav__view--active .sec-nav__view-name { font-weight: var(--v9-font-weight-strong); }
+
+/* Pin toggle button */
+.sec-nav__pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
   border: none;
   border-radius: var(--v9-radius-m);
   background: none;
   cursor: pointer;
-  text-align: left;
-}
-.sec-nav__view:hover { background: var(--v9-ui-hover); }
-.sec-nav__view:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
-
-.sec-nav__pin {
-  flex-shrink: 0;
-  margin-top: 2px; /* optically align with first text line */
   color: var(--v9-ui-icon);
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
+/* Show on row hover or when the view is active/unpinned */
+.sec-nav__view:hover .sec-nav__pin-btn,
+.sec-nav__view--active .sec-nav__pin-btn,
+.sec-nav__pin-btn--pinned {
+  opacity: 1;
+}
+.sec-nav__pin-btn:hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+.sec-nav__pin-btn--pinned { color: var(--v9-ui-text); }
+.sec-nav__pin-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; opacity: 1; }
 
 .sec-nav__view-text {
   display: flex;
