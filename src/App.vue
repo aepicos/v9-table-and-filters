@@ -1059,7 +1059,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </Transition>
     <!-- Toast -->
     <Transition name="toast">
-      <div v-if="toastMessage" class="snv-toast-wrap">
+      <div v-if="toastMessage" class="snv-toast-wrap" :class="`snv-toast-wrap--${toastType}`">
         <!-- Flash sits outside the clipped toast, bleeds freely onto the page -->
         <div class="snv-toast-flash" aria-hidden="true" />
         <!-- Toast pill -->
@@ -2517,11 +2517,14 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   right: -60px;
   width: 320px;
   height: 220px;
-  background: radial-gradient(circle at 80% 20%, var(--v9-ui-focus) 0%, transparent 60%);
   pointer-events: none;
   opacity: 0;
   animation: toast-flash 1.4s ease-out forwards;
 }
+.snv-toast-wrap.snv-toast-wrap--info    .snv-toast-flash { background: radial-gradient(circle at 80% 20%, var(--v9-info-main)    0%, transparent 60%); }
+.snv-toast-wrap.snv-toast-wrap--success .snv-toast-flash { background: radial-gradient(circle at 80% 20%, var(--v9-success-main) 0%, transparent 60%); }
+.snv-toast-wrap.snv-toast-wrap--warning .snv-toast-flash { background: radial-gradient(circle at 80% 20%, var(--v9-warning-main) 0%, transparent 60%); }
+.snv-toast-wrap.snv-toast-wrap--danger  .snv-toast-flash { background: radial-gradient(circle at 80% 20%, var(--v9-danger-main)  0%, transparent 60%); }
 @keyframes toast-flash {
   0%   { opacity: 0; }
   25%  { opacity: 0.5; }
