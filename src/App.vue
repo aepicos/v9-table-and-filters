@@ -4,7 +4,7 @@ import AssetManagementPage from './components/AssetManagementPage.vue'
 import SavedViewsPage from './components/SavedViewsPage.vue'
 import { useSavedViews, type SavedView, type ViewState } from './data/savedViews'
 
-const { views, pinnedViews, togglePin, saveView, getViewByName } = useSavedViews()
+const { views, pinnedViews, togglePin, saveView, getViewByNameAndPath } = useSavedViews()
 
 const ampRef = ref<InstanceType<typeof AssetManagementPage> | null>(null)
 
@@ -190,13 +190,69 @@ const snvScope = ref<'everyone' | 'admin' | 'only-me'>('only-me')
 const snvPinned = ref(false)
 const snvOverwriteTarget = ref<SavedView | null>(null)
 
+// View name combobox
+const snvNameFocused = ref(false)
+const snvNameHighlighted = ref(-1)
+
+const snvNameSuggestions = computed(() => {
+  if (!snvNameFocused.value) return []
+  const val = snvName.value.trim().toLowerCase()
+  const current = currentPageLabel.value.toLowerCase()
+  const matched = val
+    ? views.value.filter(v => v.name.toLowerCase().includes(val))
+    : views.value
+  const thisPage = matched.filter(v => v.path.join(' / ').toLowerCase() === current)
+  const others   = matched.filter(v => v.path.join(' / ').toLowerCase() !== current)
+  return [...thisPage, ...others].slice(0, 8)
+})
+
+// Index after which to insert the divider (-1 = no divider)
+const snvNameDividerAfter = computed(() => {
+  if (!snvNameFocused.value) return -1
+  const val = snvName.value.trim().toLowerCase()
+  const current = currentPageLabel.value.toLowerCase()
+  const matched = val
+    ? views.value.filter(v => v.name.toLowerCase().includes(val))
+    : views.value
+  const thisPageCount = matched.filter(v => v.path.join(' / ').toLowerCase() === current).length
+  const othersCount   = matched.filter(v => v.path.join(' / ').toLowerCase() !== current).length
+  return (thisPageCount > 0 && othersCount > 0) ? Math.min(thisPageCount, 8) : -1
+})
+
+function selectSnvNameSuggestion(view: SavedView) {
+  snvName.value = view.name
+  if (view.summary) snvSummary.value = view.summary
+  snvNameFocused.value = false
+  snvNameHighlighted.value = -1
+}
+
+function handleSnvNameKeydown(e: KeyboardEvent) {
+  const suggestions = snvNameSuggestions.value
+  if (!suggestions.length) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    snvNameHighlighted.value = (snvNameHighlighted.value + 1) % suggestions.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    snvNameHighlighted.value = snvNameHighlighted.value <= 0 ? suggestions.length - 1 : snvNameHighlighted.value - 1
+  } else if (e.key === 'Enter') {
+    const idx = snvNameHighlighted.value >= 0 ? snvNameHighlighted.value : 0
+    if (suggestions[idx]) { e.preventDefault(); selectSnvNameSuggestion(suggestions[idx]) }
+  } else if (e.key === 'Escape') {
+    snvNameFocused.value = false
+    snvNameHighlighted.value = -1
+  }
+}
+
+function handleSnvNameBlur() {
+  // Delay so mousedown on a suggestion fires before blur hides the list
+  setTimeout(() => { snvNameFocused.value = false; snvNameHighlighted.value = -1 }, 150)
+}
+
 // Toast
 const toastMessage = ref<string | null>(null)
-let _toastTimer: ReturnType<typeof setTimeout> | null = null
 function showToast(msg: string) {
-  if (_toastTimer) clearTimeout(_toastTimer)
   toastMessage.value = msg
-  _toastTimer = setTimeout(() => { toastMessage.value = null }, 5000)
 }
 
 const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -235,6 +291,12 @@ const currentPageLabel = computed(() => {
   return [...p.crumbs, p.current].filter(Boolean).join(' / ')
 })
 
+// Path array for the currently active page — used when saving views
+const currentPath = computed<string[]>(() => {
+  const p = pageTitle.value
+  return [...p.crumbs, p.current].filter(Boolean)
+})
+
 function generateStateSummary(): string {
   const state = ampRef.value?.getCurrentState()
   if (!state) return ''
@@ -268,8 +330,8 @@ function openSaveViewDialog() {
 function handleSaveView() {
   const name = snvName.value.trim()
   if (!name) return
-  const existing = getViewByName(name)
-  // If collision with a DIFFERENT view (not the one we're currently editing)
+  const existing = getViewByNameAndPath(name, currentPath.value)
+  // If collision with a DIFFERENT view on the same page (not the one we're currently editing)
   if (existing && existing.id !== (activeViewId.value ?? '__none__')) {
     snvOverwriteTarget.value = existing
     return
@@ -280,15 +342,18 @@ function handleSaveView() {
 function commitSave() {
   const name = snvName.value.trim()
   const state = ampRef.value?.getCurrentState()
-  // Use overwrite target id, or current active view id, or generate new
-  const id = snvOverwriteTarget.value?.id ?? (activeViewId.value && changeCount.value <= 3 ? activeViewId.value : `view-${Date.now()}`)
+  // Reuse the active view's id only when explicitly overwriting it (same name, few changes)
+  const activeView = activeViewId.value ? views.value.find(v => v.id === activeViewId.value) : null
+  const nameUnchanged = activeView && activeView.name.trim().toLowerCase() === name.toLowerCase()
+  const id = snvOverwriteTarget.value?.id
+    ?? (activeView && nameUnchanged && changeCount.value <= 3 ? activeView.id : `view-${Date.now()}`)
   const existing = views.value.find(v => v.id === id)
 
   const savedView: SavedView = {
     id,
     name,
-    page: 'Inventory',
-    path: ['Inventory', 'Asset Management'],
+    page: currentPath.value[0] ?? 'Inventory',
+    path: currentPath.value,
     scope: snvScope.value,
     createdBy: 'Jakob Buhl',
     createdAt: existing?.createdAt ?? new Date(),
@@ -890,19 +955,50 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           <!-- View name -->
           <div class="snv-field">
             <label class="snv-label" for="snv-name">View name</label>
-            <input
-              id="snv-name"
-              v-model="snvName"
-              class="snv-input"
-              type="text"
-              placeholder="e.g. Critical repos — no SCA"
-              autocomplete="off"
-            />
             <span class="snv-info">Make it concise and descriptive, so it is easy to find.</span>
+            <div class="snv-combobox">
+              <input
+                id="snv-name"
+                v-model="snvName"
+                class="snv-input"
+                type="text"
+                placeholder="e.g. Critical repos — no SCA"
+                autocomplete="off"
+                role="combobox"
+                :aria-expanded="snvNameSuggestions.length > 0"
+                aria-autocomplete="list"
+                aria-controls="snv-name-listbox"
+                @focus="snvNameFocused = true"
+                @blur="handleSnvNameBlur"
+                @keydown="handleSnvNameKeydown"
+                @input="snvNameHighlighted = -1"
+              />
+              <div
+                v-if="snvNameSuggestions.length"
+                id="snv-name-listbox"
+                class="snv-combobox__dropdown"
+                role="listbox"
+              >
+                <template v-for="(view, i) in snvNameSuggestions" :key="view.id">
+                  <div v-if="i === snvNameDividerAfter" class="snv-combobox__divider" aria-hidden="true" />
+                  <div
+                    class="snv-combobox__option"
+                    :class="{ 'snv-combobox__option--active': i === snvNameHighlighted }"
+                    role="option"
+                    :aria-selected="i === snvNameHighlighted"
+                    @mousedown.prevent="selectSnvNameSuggestion(view)"
+                  >
+                    <span class="snv-combobox__name">{{ view.name }}</span>
+                    <span class="snv-combobox__page">{{ view.path.join(' / ') }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
           <!-- Summary -->
           <div class="snv-field">
             <label class="snv-label" for="snv-summary">View summary</label>
+            <span class="snv-info">Describe the use and purpose of the view.</span>
             <textarea
               id="snv-summary"
               v-model="snvSummary"
@@ -910,7 +1006,6 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
               rows="3"
               placeholder="Describe the use and purpose of this view."
             />
-            <span class="snv-info">Describe the use and purpose of the view.</span>
           </div>
           <!-- Page (disabled) -->
           <div class="snv-field">
@@ -952,20 +1047,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           </label>
         </div>
 
-        <!-- Overwrite confirm -->
-        <div v-if="snvOverwriteTarget" class="snv-dialog__footer snv-dialog__footer--warn">
-          <div class="snv-warn-top">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" class="snv-warn-icon" aria-hidden="true">
-              <path d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625zM10 6v4m0 2.5v.5"/>
-            </svg>
-            <span class="snv-warn-text">A view named <strong>{{ snvOverwriteTarget.name }}</strong> already exists. Overwrite it?</span>
-          </div>
-          <div class="snv-warn-actions">
-            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="snvOverwriteTarget = null">Keep both</button>
-            <button class="snv-dialog__btn snv-dialog__btn--danger" @click="commitSave">Overwrite</button>
-          </div>
-        </div>
-        <div v-else class="snv-dialog__footer">
+        <div class="snv-dialog__footer">
           <div class="snv-dialog__footer-right">
             <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="saveViewDialogOpen = false">Cancel</button>
             <button class="snv-dialog__btn snv-dialog__btn--primary" :disabled="!snvName.trim()" @click="handleSaveView">Save view</button>
@@ -982,6 +1064,39 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
             <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
         </button>
+      </div>
+    </Transition>
+
+    <!-- ── Overwrite confirm alert ──────────────────────────────── -->
+    <Transition name="overlay">
+      <div v-if="snvOverwriteTarget" class="snv-alert-overlay" @click="snvOverwriteTarget = null" />
+    </Transition>
+    <Transition name="dialog">
+      <div
+        v-if="snvOverwriteTarget"
+        class="snv-alert"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="snv-alert-title"
+        aria-describedby="snv-alert-desc"
+        @keydown.escape.stop="snvOverwriteTarget = null"
+        @click.stop
+      >
+        <!-- Icon box -->
+        <div class="snv-alert__icon-box">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <h2 id="snv-alert-title" class="snv-alert__title">View already exists</h2>
+        <p id="snv-alert-desc" class="snv-alert__desc">
+          A view named <strong>{{ snvOverwriteTarget?.name }}</strong> already exists.
+          Do you want to overwrite it, or save as a new view with a different name?
+        </p>
+        <div class="snv-alert__footer">
+          <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="snvOverwriteTarget = null">Cancel</button>
+          <button class="snv-dialog__btn snv-dialog__btn--danger" @click="commitSave">Overwrite</button>
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -1983,7 +2098,8 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
 /* ── Section header icon button (Views "Save new view") ───────── */
 .sec-nav__section-hdr--views {
-  padding-right: var(--v9-space-xxs); /* tighter right pad so button sits near the edge */
+  padding-right: 0;
+  margin-right: -4px;
 }
 
 .sec-nav__hdr-ibtn {
@@ -2232,6 +2348,57 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 .snv-input:focus { border-color: var(--v9-ui-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 20%, transparent); }
 .snv-input--textarea { height: auto; padding: var(--v9-space-xs) var(--v9-space-s); resize: vertical; line-height: var(--v9-line-height-m); }
 .snv-input--disabled { background: var(--v9-ui-canvas); color: var(--v9-ui-dimmed); cursor: not-allowed; }
+
+
+/* View name combobox dropdown */
+.snv-combobox { position: relative; }
+.snv-combobox__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 224px; /* 7 rows × 32px */
+  overflow-y: auto;
+  background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.10), 0px 4px 6px -2px rgba(0,0,0,0.06);
+}
+.snv-combobox__option {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-m);
+  padding: 0 var(--v9-space-s);
+  height: 32px;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.snv-combobox__option:hover,
+.snv-combobox__option--active { background: var(--v9-ui-hover); }
+.snv-combobox__divider {
+  height: 1px;
+  background: var(--v9-ui-border-light);
+  margin: var(--v9-space-xxs) 0;
+}
+.snv-combobox__name {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  color: var(--v9-ui-text);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.snv-combobox__page {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  color: var(--v9-ui-dimmed);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .snv-select-wrap { position: relative; display: flex; align-items: center; }
 .snv-select {
   width: 100%; height: 32px;
@@ -2258,11 +2425,70 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 .snv-checkbox-label { font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text); line-height: var(--v9-line-height-m); }
 
 /* Overwrite confirm */
-.snv-dialog__footer--warn { flex-direction: column; gap: var(--v9-space-s); align-items: stretch; }
-.snv-warn-top { display: flex; align-items: flex-start; gap: var(--v9-space-xs); }
-.snv-warn-icon { color: var(--v9-warning-main, #d97706); flex-shrink: 0; margin-top: 2px; }
-.snv-warn-text { font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text); line-height: var(--v9-line-height-m); }
-.snv-warn-actions { display: flex; gap: var(--v9-space-m); justify-content: flex-end; }
+/* ── Overwrite alert dialog ───────────────────────────────────── */
+.snv-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 202; /* above the save dialog (201) */
+  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: default;
+}
+
+.snv-alert {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 203;
+  width: 400px;
+  background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-l);
+  box-shadow: 0px 20px 12.5px rgba(0,0,0,0.12), 0px 10px 5px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  padding: var(--v9-space-xxl);
+  gap: var(--v9-space-m);
+}
+
+.snv-alert__icon-box {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--v9-radius-l);
+  background: var(--v9-warning-bg, #fef3c7);
+  border: 1px solid var(--v9-warning-border, #fcd34d);
+  color: var(--v9-warning-main, #d97706);
+}
+
+.snv-alert__title {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-xl);
+  font-weight: var(--v9-font-weight-strong);
+  line-height: var(--v9-line-height-l);
+  color: var(--v9-ui-text);
+}
+
+.snv-alert__desc {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+}
+
+.snv-alert__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--v9-space-m);
+  padding-top: var(--v9-space-xs);
+}
 .snv-dialog__btn--danger { background: var(--v9-danger-main); border: 1px solid var(--v9-danger-main); color: #fff; }
 .snv-dialog__btn--danger:hover { filter: brightness(1.1); }
 .snv-dialog__btn--danger:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }

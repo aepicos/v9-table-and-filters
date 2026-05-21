@@ -741,9 +741,13 @@ export function useSavedViews() {
     views.value = views.value.filter(v => v.id !== id)
   }
 
-  function getViewByName(name: string): SavedView | undefined {
-    const needle = name.trim().toLowerCase()
-    return views.value.find(v => v.name.trim().toLowerCase() === needle)
+  function getViewByNameAndPath(name: string, path: string[]): SavedView | undefined {
+    const needleName = name.trim().toLowerCase()
+    const needlePath = path.map(s => s.toLowerCase()).join(' / ')
+    return views.value.find(
+      v => v.name.trim().toLowerCase() === needleName &&
+           v.path.map(s => s.toLowerCase()).join(' / ') === needlePath
+    )
   }
 
   function saveView(view: SavedView) {
@@ -755,7 +759,7 @@ export function useSavedViews() {
     }
   }
 
-  return { views, pinnedViews, togglePin, deleteView, getViewByName, saveView }
+  return { views, pinnedViews, togglePin, deleteView, getViewByNameAndPath, saveView }
 }
 
 // ── Filter helpers ─────────────────────────────────────────────────
