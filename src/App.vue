@@ -1059,17 +1059,19 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </Transition>
     <!-- Toast -->
     <Transition name="toast">
-      <div v-if="toastMessage" class="snv-toast" :class="`snv-toast--${toastType}`" role="status" aria-live="polite">
-        <!-- Left status border -->
-        <div class="snv-toast__border" aria-hidden="true" />
-        <!-- Message -->
-        <p class="snv-toast__msg">{{ toastMessage }}</p>
-        <!-- Dismiss button -->
-        <button class="snv-toast__dismiss" aria-label="Dismiss notification" @click="toastMessage = null">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
-            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
+      <div v-if="toastMessage" class="snv-toast-wrap">
+        <!-- Flash sits outside the clipped toast, bleeds freely onto the page -->
+        <div class="snv-toast-flash" aria-hidden="true" />
+        <!-- Toast pill -->
+        <div class="snv-toast" :class="`snv-toast--${toastType}`" role="status" aria-live="polite">
+          <div class="snv-toast__border" aria-hidden="true" />
+          <p class="snv-toast__msg">{{ toastMessage }}</p>
+          <button class="snv-toast__dismiss" aria-label="Dismiss notification" @click="toastMessage = null">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </Transition>
 
@@ -2500,12 +2502,35 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 .snv-dialog__btn--danger:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
 .snv-dialog__btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 
+/* Toast wrapper — handles fixed positioning so the flash can bleed outside the clipped pill */
+.snv-toast-wrap {
+  position: fixed;
+  top: var(--v9-space-xl);
+  right: var(--v9-space-xl);
+  z-index: 300;
+}
+
+/* Flash — radial burst from the top-right corner, outside the pill */
+.snv-toast-flash {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 320px;
+  height: 220px;
+  background: radial-gradient(circle at 80% 20%, var(--v9-ui-focus) 0%, transparent 60%);
+  pointer-events: none;
+  opacity: 0;
+  animation: toast-flash 1.4s ease-out forwards;
+}
+@keyframes toast-flash {
+  0%   { opacity: 0; }
+  25%  { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
 /* Toast */
 .snv-toast {
-  position: fixed;
-  top: var(--v9-space-xl);    /* 24px */
-  right: var(--v9-space-xl);  /* 24px */
-  z-index: 300;
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--v9-space-m);     /* 12px */
@@ -2556,8 +2581,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 }
 .snv-toast__dismiss:hover { opacity: 1; }
 
-.toast-enter-active { transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+/* Transition targets the wrapper so both toast and flash move together */
+.toast-enter-active { transition: opacity 0.15s ease, transform 0.35s cubic-bezier(0.22, 1.5, 0.36, 1); }
 .toast-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
-.toast-enter-from   { opacity: 0; transform: translateX(16px); }
+.toast-enter-from   { opacity: 0; transform: translateX(40px) scale(1.08, 0.92); }
 .toast-leave-to     { opacity: 0; transform: translateX(16px); }
+
 </style>
