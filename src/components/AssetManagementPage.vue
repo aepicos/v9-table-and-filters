@@ -21,6 +21,8 @@ import FilterBar from './FilterBar.vue'
 import { type FilterChip, type AdvancedQuery } from '../data/filters'
 import { DATASET_STATS } from '../data/mockAssets'
 
+const assetTableRef = ref<InstanceType<typeof AssetTable> | null>(null)
+
 const search = ref('')
 
 const filters = ref<FilterChip[]>(props.initialState?.filters ?? [])
@@ -216,6 +218,16 @@ watch(filters, () => {
 watch(advancedQuery, () => {
   if (_pageMounted) emit('state-changed')
 })
+
+defineExpose({
+  getCurrentState() {
+    return {
+      filters: filters.value,
+      advancedQuery: advancedQuery.value,
+      ...(assetTableRef.value?.getState() ?? {}),
+    }
+  }
+})
 </script>
 
 <template>
@@ -276,6 +288,7 @@ watch(advancedQuery, () => {
         style="height: calc(100vh - 56px - 2rem);"
       >
         <AssetTable
+          ref="assetTableRef"
           :search="search"
           :filters="filters"
           :advanced-query="advancedQuery"

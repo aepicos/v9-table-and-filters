@@ -741,7 +741,21 @@ export function useSavedViews() {
     views.value = views.value.filter(v => v.id !== id)
   }
 
-  return { views, pinnedViews, togglePin, deleteView }
+  function getViewByName(name: string): SavedView | undefined {
+    const needle = name.trim().toLowerCase()
+    return views.value.find(v => v.name.trim().toLowerCase() === needle)
+  }
+
+  function saveView(view: SavedView) {
+    const idx = views.value.findIndex(v => v.id === view.id)
+    if (idx !== -1) {
+      views.value.splice(idx, 1, view)
+    } else {
+      views.value.push(view)
+    }
+  }
+
+  return { views, pinnedViews, togglePin, deleteView, getViewByName, saveView }
 }
 
 // ── Filter helpers ─────────────────────────────────────────────────

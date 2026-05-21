@@ -4,7 +4,9 @@ import AssetManagementPage from './components/AssetManagementPage.vue'
 import SavedViewsPage from './components/SavedViewsPage.vue'
 import { useSavedViews, type SavedView, type ViewState } from './data/savedViews'
 
-const { views, pinnedViews, togglePin } = useSavedViews()
+const { views, pinnedViews, togglePin, saveView, getViewByName } = useSavedViews()
+
+const ampRef = ref<InstanceType<typeof AssetManagementPage> | null>(null)
 
 const navItems = [
   {
@@ -159,6 +161,7 @@ function pathToSelectedItem(path: string[]): string {
 }
 
 function navigateToView(view: SavedView) {
+  changeCount.value = 0
   // Set view IDs before changing selectedItem so the selectedItem watch
   // sees them already set and doesn't clear them.
   activeViewId.value = view.id
@@ -176,6 +179,25 @@ const secNavCollapsed = ref(false)
 const saveViewDialogOpen = ref(false)
 const saveViewDialogRef = ref<HTMLElement | null>(null)
 const saveViewTriggerRef = ref<HTMLElement | null>(null)
+
+// Change tracking
+const changeCount = ref(0)
+
+// Dialog form state
+const snvName = ref('')
+const snvSummary = ref('')
+const snvScope = ref<'everyone' | 'admin' | 'only-me'>('only-me')
+const snvPinned = ref(false)
+const snvOverwriteTarget = ref<SavedView | null>(null)
+
+// Toast
+const toastMessage = ref<string | null>(null)
+let _toastTimer: ReturnType<typeof setTimeout> | null = null
+function showToast(msg: string) {
+  if (_toastTimer) clearTimeout(_toastTimer)
+  toastMessage.value = msg
+  _toastTimer = setTimeout(() => { toastMessage.value = null }, 5000)
+}
 
 const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
@@ -206,6 +228,89 @@ function handleDialogKeydown(e: KeyboardEvent) {
   } else {
     if (document.activeElement === last) { e.preventDefault(); first.focus() }
   }
+}
+
+const currentPageLabel = computed(() => {
+  const p = pageTitle.value
+  return [...p.crumbs, p.current].filter(Boolean).join(' / ')
+})
+
+function generateStateSummary(): string {
+  const state = ampRef.value?.getCurrentState()
+  if (!state) return ''
+  const parts: string[] = []
+  if (state.filters && (state.filters as any[]).length > 0) {
+    const filterStr = (state.filters as any[]).map(f => `${f.key} ${f.operator} ${f.value}`).join(', ')
+    parts.push(`Filters: ${filterStr}`)
+  }
+  if (state.groupBy) parts.push(`Grouped by: ${state.groupBy}`)
+  if (state.sortCol) parts.push(`Sorted by: ${state.sortCol} (${state.sortDir ?? 'desc'})`)
+  if (state.density === 'compact') parts.push('Density: Compact')
+  return parts.join(' · ') || 'No filters or customisations applied.'
+}
+
+function openSaveViewDialog() {
+  const baseView = activeViewId.value ? views.value.find(v => v.id === activeViewId.value) : null
+  const fewChanges = changeCount.value <= 3
+  if (baseView && fewChanges) {
+    snvName.value = baseView.name
+    snvSummary.value = baseView.summary
+  } else {
+    snvName.value = ''
+    snvSummary.value = generateStateSummary()
+  }
+  snvScope.value = 'only-me'
+  snvPinned.value = false
+  snvOverwriteTarget.value = null
+  saveViewDialogOpen.value = true
+}
+
+function handleSaveView() {
+  const name = snvName.value.trim()
+  if (!name) return
+  const existing = getViewByName(name)
+  // If collision with a DIFFERENT view (not the one we're currently editing)
+  if (existing && existing.id !== (activeViewId.value ?? '__none__')) {
+    snvOverwriteTarget.value = existing
+    return
+  }
+  commitSave()
+}
+
+function commitSave() {
+  const name = snvName.value.trim()
+  const state = ampRef.value?.getCurrentState()
+  // Use overwrite target id, or current active view id, or generate new
+  const id = snvOverwriteTarget.value?.id ?? (activeViewId.value && changeCount.value <= 3 ? activeViewId.value : `view-${Date.now()}`)
+  const existing = views.value.find(v => v.id === id)
+
+  const savedView: SavedView = {
+    id,
+    name,
+    page: 'Inventory',
+    path: ['Inventory', 'Asset Management'],
+    scope: snvScope.value,
+    createdBy: 'Jakob Buhl',
+    createdAt: existing?.createdAt ?? new Date(),
+    pinned: snvPinned.value,
+    summary: snvSummary.value.trim() || generateStateSummary(),
+    state: state ? {
+      filters: state.filters,
+      sortCol: state.sortCol,
+      sortDir: state.sortDir,
+      groupBy: state.groupBy,
+      density: state.density,
+      visibleColumns: state.visibleColumns,
+    } : undefined,
+  }
+
+  saveView(savedView)
+  activeViewId.value = savedView.id
+  tempViewId.value = savedView.pinned ? null : savedView.id
+  changeCount.value = 0
+  saveViewDialogOpen.value = false
+  snvOverwriteTarget.value = null
+  showToast(`View "${name}" has been saved.`)
 }
 
 // Which parent section stays open — AM stays open when a child of AM is selected
@@ -301,6 +406,7 @@ watch(activeViewId, async () => {
 })
 
 function onStateChanged() {
+  changeCount.value++
   activeViewId.value = null
   // Evict the temp view if it's still unpinned (user edited it away)
   if (tempViewId.value) {
@@ -560,7 +666,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
               ref="saveViewTriggerRef"
               class="sec-nav__hdr-ibtn-base"
               aria-label="Save new view"
-              @click="saveViewDialogOpen = true"
+              @click="openSaveViewDialog()"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/>
@@ -747,7 +853,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
       <!-- Main content -->
       <main id="main" tabindex="-1" class="app-page" :class="{ 'app-page--views': selectedItem === 'all-views' }">
         <SavedViewsPage v-if="selectedItem === 'all-views'" :previous-page-label="previousPageLabel" @back="selectedItem = previousPage" @navigate-to-view="navigateToView" />
-        <AssetManagementPage v-else :key="viewStateKey" :title="pageTitle" :initial-state="activeViewState ?? undefined" @state-changed="onStateChanged" />
+        <AssetManagementPage ref="ampRef" v-else :key="viewStateKey" :title="pageTitle" :initial-state="activeViewState ?? undefined" @state-changed="onStateChanged" />
       </main>
     </div>
   </div>
@@ -778,19 +884,104 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
           </button>
         </div>
 
-        <!-- Content (placeholder — to be filled in) -->
-        <div class="snv-dialog__content">
+        <!-- Content -->
+        <div class="snv-dialog__content snv-dialog__content--form">
           <h2 id="snv-title" class="snv-dialog__title">Save new view</h2>
-          <p class="snv-dialog__description">Configure and name your view to save it.</p>
+          <!-- View name -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-name">View name</label>
+            <input
+              id="snv-name"
+              v-model="snvName"
+              class="snv-input"
+              type="text"
+              placeholder="e.g. Critical repos — no SCA"
+              autocomplete="off"
+            />
+            <span class="snv-info">Make it concise and descriptive, so it is easy to find.</span>
+          </div>
+          <!-- Summary -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-summary">View summary</label>
+            <textarea
+              id="snv-summary"
+              v-model="snvSummary"
+              class="snv-input snv-input--textarea"
+              rows="3"
+              placeholder="Describe the use and purpose of this view."
+            />
+            <span class="snv-info">Describe the use and purpose of the view.</span>
+          </div>
+          <!-- Page (disabled) -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-page">Page</label>
+            <input
+              id="snv-page"
+              class="snv-input snv-input--disabled"
+              type="text"
+              :value="currentPageLabel"
+              disabled
+            />
+          </div>
+          <!-- Scope -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-scope">Scope</label>
+            <div class="snv-select-wrap">
+              <select id="snv-scope" v-model="snvScope" class="snv-select">
+                <option value="only-me">Only me</option>
+                <option value="everyone">Everyone</option>
+                <option value="admin">Admin</option>
+              </select>
+              <svg class="snv-select-chevron" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Pin checkbox -->
+          <label class="snv-checkbox-row">
+            <span class="snv-checkbox-box" :class="{ 'snv-checkbox-box--checked': snvPinned }" aria-hidden="true">
+              <svg v-if="snvPinned" viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
+              </svg>
+            </span>
+            <input type="checkbox" v-model="snvPinned" class="snv-checkbox-input" />
+            <svg fill="currentColor" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" class="snv-pin-icon">
+              <path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/>
+            </svg>
+            <span class="snv-checkbox-label">Pin view</span>
+          </label>
         </div>
 
-        <!-- Footer -->
-        <div class="snv-dialog__footer">
-          <div class="snv-dialog__footer-right">
-            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="saveViewDialogOpen = false">Cancel</button>
-            <button class="snv-dialog__btn snv-dialog__btn--primary">Save view</button>
+        <!-- Overwrite confirm -->
+        <div v-if="snvOverwriteTarget" class="snv-dialog__footer snv-dialog__footer--warn">
+          <div class="snv-warn-top">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" class="snv-warn-icon" aria-hidden="true">
+              <path d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625zM10 6v4m0 2.5v.5"/>
+            </svg>
+            <span class="snv-warn-text">A view named <strong>{{ snvOverwriteTarget.name }}</strong> already exists. Overwrite it?</span>
+          </div>
+          <div class="snv-warn-actions">
+            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="snvOverwriteTarget = null">Keep both</button>
+            <button class="snv-dialog__btn snv-dialog__btn--danger" @click="commitSave">Overwrite</button>
           </div>
         </div>
+        <div v-else class="snv-dialog__footer">
+          <div class="snv-dialog__footer-right">
+            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="saveViewDialogOpen = false">Cancel</button>
+            <button class="snv-dialog__btn snv-dialog__btn--primary" :disabled="!snvName.trim()" @click="handleSaveView">Save view</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMessage" class="snv-toast" role="status" aria-live="polite">
+        <span class="snv-toast__msg">{{ toastMessage }}</span>
+        <button class="snv-toast__dismiss" aria-label="Dismiss notification" @click="toastMessage = null">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
       </div>
     </Transition>
   </Teleport>
@@ -1856,20 +2047,22 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   z-index: 200;
   backdrop-filter: blur(3px);
   cursor: default;
+  /* Baseline dark tint so it dims correctly in light mode too */
+  background: rgba(0, 0, 0, 0.25);
 }
 .snv-overlay::before {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--v9-ui-bg);
-  opacity: 0.5;
+  opacity: 0.35;
 }
 .snv-overlay::after {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--v9-ui-text);
-  opacity: 0.1;
+  opacity: 0.08;
 }
 
 /* Overlay transition */
@@ -1887,6 +2080,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   z-index: 201;
   width: 512px;
   background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
   border-radius: var(--v9-radius-l);
   box-shadow: 0px 20px 12.5px rgba(0,0,0,0.10), 0px 10px 5px rgba(0,0,0,0.06);
   display: flex;
@@ -1998,4 +2192,102 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 }
 .snv-dialog__btn--primary:hover { filter: brightness(1.1); }
 .snv-dialog__btn--primary:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+/* ── Dialog form ──────────────────────────────────────────────── */
+.snv-dialog__content--form {
+  padding-top: var(--v9-space-xl);
+}
+.snv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.snv-label {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-strong);
+  color: var(--v9-ui-text);
+  line-height: var(--v9-line-height-m);
+}
+.snv-info {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  color: var(--v9-ui-dimmed);
+  line-height: var(--v9-line-height-s);
+}
+.snv-input {
+  height: 32px;
+  padding: 0 var(--v9-space-s);
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  color: var(--v9-ui-text);
+  outline: none;
+  transition: border-color 0.1s, box-shadow 0.1s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.snv-input:focus { border-color: var(--v9-ui-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 20%, transparent); }
+.snv-input--textarea { height: auto; padding: var(--v9-space-xs) var(--v9-space-s); resize: vertical; line-height: var(--v9-line-height-m); }
+.snv-input--disabled { background: var(--v9-ui-canvas); color: var(--v9-ui-dimmed); cursor: not-allowed; }
+.snv-select-wrap { position: relative; display: flex; align-items: center; }
+.snv-select {
+  width: 100%; height: 32px;
+  padding: 0 var(--v9-space-xl) 0 var(--v9-space-s);
+  background: var(--v9-input-bg); border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text);
+  appearance: none; -webkit-appearance: none; outline: none; cursor: pointer;
+  box-sizing: border-box; transition: border-color 0.1s;
+}
+.snv-select:focus { border-color: var(--v9-ui-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 20%, transparent); }
+.snv-select-chevron { position: absolute; right: var(--v9-space-s); pointer-events: none; color: var(--v9-ui-dimmed); }
+.snv-checkbox-row { display: flex; align-items: center; gap: var(--v9-space-xs); cursor: pointer; user-select: none; }
+.snv-checkbox-input { position: absolute; opacity: 0; width: 0; height: 0; }
+.snv-checkbox-box {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--v9-radius-s); border: 1.5px solid var(--v9-input-border);
+  background: var(--v9-input-bg); transition: background 0.1s, border-color 0.1s;
+}
+.snv-checkbox-box--checked { background: var(--v9-ui-selected); border-color: var(--v9-ui-selected); color: var(--v9-ui-bg); }
+.snv-checkbox-row:hover .snv-checkbox-box:not(.snv-checkbox-box--checked) { background: var(--v9-ui-hover); }
+.snv-pin-icon { color: var(--v9-ui-dimmed); flex-shrink: 0; }
+.snv-checkbox-label { font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text); line-height: var(--v9-line-height-m); }
+
+/* Overwrite confirm */
+.snv-dialog__footer--warn { flex-direction: column; gap: var(--v9-space-s); align-items: stretch; }
+.snv-warn-top { display: flex; align-items: flex-start; gap: var(--v9-space-xs); }
+.snv-warn-icon { color: var(--v9-warning-main, #d97706); flex-shrink: 0; margin-top: 2px; }
+.snv-warn-text { font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text); line-height: var(--v9-line-height-m); }
+.snv-warn-actions { display: flex; gap: var(--v9-space-m); justify-content: flex-end; }
+.snv-dialog__btn--danger { background: var(--v9-danger-main); border: 1px solid var(--v9-danger-main); color: #fff; }
+.snv-dialog__btn--danger:hover { filter: brightness(1.1); }
+.snv-dialog__btn--danger:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+.snv-dialog__btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+/* Toast */
+.snv-toast {
+  position: fixed; top: var(--v9-space-xl); right: var(--v9-space-xl); z-index: 300;
+  display: flex; align-items: center; gap: var(--v9-space-m);
+  max-width: 360px; padding: var(--v9-space-s) var(--v9-space-s) var(--v9-space-s) var(--v9-space-m);
+  background: var(--v9-ui-selected); color: var(--v9-ui-bg);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.15), 0px 4px 6px -2px rgba(0,0,0,0.08);
+  font-family: var(--v9-font); font-size: var(--v9-font-size-m); line-height: var(--v9-line-height-m);
+}
+.snv-toast__msg { flex: 1; }
+.snv-toast__dismiss {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: none; border-radius: var(--v9-radius-s);
+  background: none; cursor: pointer; color: inherit; opacity: 0.7; flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.snv-toast__dismiss:hover { opacity: 1; }
+.toast-enter-active { transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.toast-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.toast-enter-from { opacity: 0; transform: translateX(16px); }
+.toast-leave-to   { opacity: 0; transform: translateX(16px); }
 </style>

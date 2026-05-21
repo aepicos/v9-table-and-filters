@@ -1045,6 +1045,18 @@ function ariaSortFor(col: ColDef): 'ascending' | 'descending' | 'none' | undefin
   if (sortCol.value === col.id) return sortDir.value === 'asc' ? 'ascending' : 'descending'
   return 'none'
 }
+
+defineExpose({
+  getState(): ViewState {
+    return {
+      sortCol: sortCol.value,
+      sortDir: sortDir.value,
+      groupBy: groupBy.value,
+      density: density.value,
+      visibleColumns: columns.value.filter(c => c.visible).map(c => c.id),
+    }
+  }
+})
 </script>
 
 <template>
