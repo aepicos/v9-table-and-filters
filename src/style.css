@@ -975,6 +975,17 @@ html, body {
   border-radius: 2px;
 }
 
+.svp-name-link {
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.svp-name-link:hover,
+.svp-row:hover .svp-name-link {
+  text-decoration: none;
+}
+
 .at-asset-name-secondary {
   font-size: 11px;
   color: var(--at-text-3);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import type { ViewState } from '../data/savedViews'
 
 const props = defineProps<{
   title: {
@@ -7,6 +8,11 @@ const props = defineProps<{
     current: string
     sub: string | null
   }
+  initialState?: ViewState
+}>()
+
+const emit = defineEmits<{
+  (e: 'state-changed'): void
 }>()
 import KpiBar from './KpiBar.vue'
 import type { KpiDef } from './KpiBar.vue'
@@ -15,9 +21,11 @@ import FilterBar from './FilterBar.vue'
 import { type FilterChip, type AdvancedQuery } from '../data/filters'
 import { DATASET_STATS } from '../data/mockAssets'
 
+const assetTableRef = ref<InstanceType<typeof AssetTable> | null>(null)
+
 const search = ref('')
 
-const filters = ref<FilterChip[]>([])
+const filters = ref<FilterChip[]>(props.initialState?.filters ?? [])
 const advancedQuery = ref<AdvancedQuery | null>(null)
 
 // ── KPI → filter chip templates ───────────────────────────────
@@ -198,6 +206,28 @@ function applyAdvanced(query: AdvancedQuery) {
 function clearAdvanced() {
   advancedQuery.value = null
 }
+
+// Emit state-changed when filters are modified after the component has mounted
+let _pageMounted = false
+onMounted(() => { _pageMounted = true })
+
+watch(filters, () => {
+  if (_pageMounted) emit('state-changed')
+}, { deep: true })
+
+watch(advancedQuery, () => {
+  if (_pageMounted) emit('state-changed')
+})
+
+defineExpose({
+  getCurrentState() {
+    return {
+      filters: filters.value,
+      advancedQuery: advancedQuery.value,
+      ...(assetTableRef.value?.getState() ?? {}),
+    }
+  }
+})
 </script>
 
 <template>
@@ -258,9 +288,12 @@ function clearAdvanced() {
         style="height: calc(100vh - 56px - 2rem);"
       >
         <AssetTable
+          ref="assetTableRef"
           :search="search"
           :filters="filters"
           :advanced-query="advancedQuery"
+          :initial-state="props.initialState"
+          @state-changed="emit('state-changed')"
         />
       </div>
     </div>

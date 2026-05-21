@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AssetManagementPage from './components/AssetManagementPage.vue'
+import SavedViewsPage from './components/SavedViewsPage.vue'
+import { useSavedViews, type SavedView, type ViewState } from './data/savedViews'
+
+const { views, pinnedViews, togglePin, saveView, getViewByNameAndPath } = useSavedViews()
+
+const ampRef = ref<InstanceType<typeof AssetManagementPage> | null>(null)
 
 const navItems = [
   {
@@ -71,15 +77,306 @@ const secNavPages = [
   { label: 'Components', children: [] },
 ]
 
-const secNavViews = [
-  { label: 'Critical repos', context: 'Asset management • Repositories' },
-  { label: 'External APIs', context: 'Asset management • API' },
-  { label: 'High-risk packages', context: 'Asset management • Packages' },
-]
+// ── Temp view — an unpinned view that's temporarily visible in the sec-nav
+// while it's selected. Disappears on deselect/state-change unless pinned first.
+const tempViewId = ref<string | null>(null)
+
+// Views shown in the sec-nav: pinned views for current page + temp view (if any)
+const secNavViews = computed(() => {
+  const target = selectedItem.value.toLowerCase()
+  const pinned = pinnedViews.value.filter(
+    v => v.path[v.path.length - 1]?.toLowerCase() === target
+  )
+  if (tempViewId.value) {
+    const temp = views.value.find(v => v.id === tempViewId.value)
+    if (temp && !temp.pinned) return [...pinned, temp]
+  }
+  return pinned
+})
+
+// ── Active view (selected in sec-nav) ─────────────────────────
+const activeViewId = ref<string | null>(null)
+
+// Apply a view from the sec-nav button
+function applyView(view: SavedView) {
+  navigateToView(view)
+}
+
+// Toggle pin and clear tempViewId if the view just became pinned
+function handlePinToggle(viewId: string) {
+  togglePin(viewId)
+  if (viewId === tempViewId.value) {
+    const v = views.value.find(v => v.id === viewId)
+    // After toggle: if now pinned, it's a permanent entry — clear temp slot
+    if (v?.pinned) tempViewId.value = null
+  }
+}
+
+// ── View indicator (sliding background for selected view) ─────
+const viewListRef = ref<HTMLElement | null>(null)
+const viewButtonRefs: Record<string, HTMLElement> = {}
+const viewIndicatorY = ref(0)
+const viewIndicatorH = ref(36)
+const viewIndicatorReady = ref(false)
+const viewIndicatorAnimate = ref(false)
+
+const viewIndicatorStyle = computed(() => ({
+  top:    `${viewIndicatorY.value}px`,
+  height: `${viewIndicatorH.value}px`,
+  opacity: viewIndicatorReady.value && activeViewId.value ? '1' : '0',
+  transition: viewIndicatorAnimate.value
+    ? 'top 0.18s cubic-bezier(0.4,0,0.2,1), height 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.1s'
+    : 'opacity 0.1s',
+}))
+
+function updateViewIndicator(animate: boolean) {
+  if (!activeViewId.value) return
+  const btn = viewButtonRefs[activeViewId.value]
+  const list = viewListRef.value
+  if (!btn || !list) return
+  const listRect = list.getBoundingClientRect()
+  const btnRect  = btn.getBoundingClientRect()
+  viewIndicatorAnimate.value = animate
+  viewIndicatorY.value = btnRect.top - listRect.top
+  viewIndicatorH.value = btnRect.height
+  viewIndicatorReady.value = true
+}
 
 // Single selection across all pages + children
 const selectedItem = ref('Asset Management')
+const previousPage = ref('Asset Management')
+const activeViewState = ref<ViewState | null>(null)
+const viewStateKey = ref(0)
+
+function pathToSelectedItem(path: string[]): string {
+  if (path.length === 0) return 'Asset Management'
+  const last = path[path.length - 1].toLowerCase()
+  for (const page of secNavPages) {
+    if (page.label.toLowerCase() === last) return page.label
+    for (const child of (page.children as any[])) {
+      if (child.label.toLowerCase() === last) return child.label
+    }
+  }
+  return 'Asset Management'
+}
+
+function navigateToView(view: SavedView) {
+  changeCount.value = 0
+  // Set view IDs before changing selectedItem so the selectedItem watch
+  // sees them already set and doesn't clear them.
+  activeViewId.value = view.id
+  tempViewId.value = view.pinned ? null : view.id
+  activeViewState.value = view.state ?? null
+  viewStateKey.value++
+  selectedItem.value = pathToSelectedItem(view.path)
+}
+const previousPageLabel = computed(() =>
+  previousPage.value === 'Asset Management' ? 'Inventory' : previousPage.value
+)
 const secNavCollapsed = ref(false)
+
+// ── Save new view dialog ───────────────────────────────────────
+const saveViewDialogOpen = ref(false)
+const saveViewDialogRef = ref<HTMLElement | null>(null)
+const saveViewTriggerRef = ref<HTMLElement | null>(null)
+
+// Change tracking
+const changeCount = ref(0)
+
+// Dialog form state
+const snvName = ref('')
+const snvSummary = ref('')
+const snvScope = ref<'everyone' | 'admin' | 'only-me'>('only-me')
+const snvPinned = ref(false)
+const snvOverwriteTarget = ref<SavedView | null>(null)
+
+// View name combobox
+const snvNameFocused = ref(false)
+const snvNameHighlighted = ref(-1)
+
+const snvNameSuggestions = computed(() => {
+  if (!snvNameFocused.value) return []
+  const val = snvName.value.trim().toLowerCase()
+  const current = currentPageLabel.value.toLowerCase()
+  const matched = val
+    ? views.value.filter(v => v.name.toLowerCase().includes(val))
+    : views.value
+  const thisPage = matched.filter(v => v.path.join(' / ').toLowerCase() === current)
+  const others   = matched.filter(v => v.path.join(' / ').toLowerCase() !== current)
+  return [...thisPage, ...others].slice(0, 8)
+})
+
+// Index after which to insert the divider (-1 = no divider)
+const snvNameDividerAfter = computed(() => {
+  if (!snvNameFocused.value) return -1
+  const val = snvName.value.trim().toLowerCase()
+  const current = currentPageLabel.value.toLowerCase()
+  const matched = val
+    ? views.value.filter(v => v.name.toLowerCase().includes(val))
+    : views.value
+  const thisPageCount = matched.filter(v => v.path.join(' / ').toLowerCase() === current).length
+  const othersCount   = matched.filter(v => v.path.join(' / ').toLowerCase() !== current).length
+  return (thisPageCount > 0 && othersCount > 0) ? Math.min(thisPageCount, 8) : -1
+})
+
+function selectSnvNameSuggestion(view: SavedView) {
+  snvName.value = view.name
+  if (view.summary) snvSummary.value = view.summary
+  snvNameFocused.value = false
+  snvNameHighlighted.value = -1
+}
+
+function handleSnvNameKeydown(e: KeyboardEvent) {
+  const suggestions = snvNameSuggestions.value
+  if (!suggestions.length) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    snvNameHighlighted.value = (snvNameHighlighted.value + 1) % suggestions.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    snvNameHighlighted.value = snvNameHighlighted.value <= 0 ? suggestions.length - 1 : snvNameHighlighted.value - 1
+  } else if (e.key === 'Enter') {
+    const idx = snvNameHighlighted.value >= 0 ? snvNameHighlighted.value : 0
+    if (suggestions[idx]) { e.preventDefault(); selectSnvNameSuggestion(suggestions[idx]) }
+  } else if (e.key === 'Escape') {
+    snvNameFocused.value = false
+    snvNameHighlighted.value = -1
+  }
+}
+
+function handleSnvNameBlur() {
+  // Delay so mousedown on a suggestion fires before blur hides the list
+  setTimeout(() => { snvNameFocused.value = false; snvNameHighlighted.value = -1 }, 150)
+}
+
+// Toast
+const toastMessage = ref<string | null>(null)
+function showToast(msg: string) {
+  toastMessage.value = msg
+}
+
+const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+
+watch(saveViewDialogOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    // Focus the dismiss button (first focusable element)
+    const first = saveViewDialogRef.value?.querySelector<HTMLElement>(FOCUSABLE)
+    first?.focus()
+  } else {
+    // Return focus to the trigger that opened the dialog
+    saveViewTriggerRef.value?.focus()
+  }
+})
+
+function handleDialogKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Tab') return
+  const dialog = saveViewDialogRef.value
+  if (!dialog) return
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    el => !el.closest('[hidden]') && el.offsetParent !== null
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus() }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus() }
+  }
+}
+
+const currentPageLabel = computed(() => {
+  const p = pageTitle.value
+  return [...p.crumbs, p.current].filter(Boolean).join(' / ')
+})
+
+// Path array for the currently active page — used when saving views
+const currentPath = computed<string[]>(() => {
+  const p = pageTitle.value
+  return [...p.crumbs, p.current].filter(Boolean)
+})
+
+function generateStateSummary(): string {
+  const state = ampRef.value?.getCurrentState()
+  if (!state) return ''
+  const parts: string[] = []
+  if (state.filters && (state.filters as any[]).length > 0) {
+    const filterStr = (state.filters as any[]).map(f => `${f.key} ${f.operator} ${f.value}`).join(', ')
+    parts.push(`Filters: ${filterStr}`)
+  }
+  if (state.groupBy) parts.push(`Grouped by: ${state.groupBy}`)
+  if (state.sortCol) parts.push(`Sorted by: ${state.sortCol} (${state.sortDir ?? 'desc'})`)
+  if (state.density === 'compact') parts.push('Density: Compact')
+  return parts.join(' · ') || 'No filters or customisations applied.'
+}
+
+function openSaveViewDialog() {
+  const baseView = activeViewId.value ? views.value.find(v => v.id === activeViewId.value) : null
+  const fewChanges = changeCount.value <= 3
+  if (baseView && fewChanges) {
+    snvName.value = baseView.name
+    snvSummary.value = baseView.summary
+  } else {
+    snvName.value = ''
+    snvSummary.value = generateStateSummary()
+  }
+  snvScope.value = 'only-me'
+  snvPinned.value = false
+  snvOverwriteTarget.value = null
+  saveViewDialogOpen.value = true
+}
+
+function handleSaveView() {
+  const name = snvName.value.trim()
+  if (!name) return
+  const existing = getViewByNameAndPath(name, currentPath.value)
+  // If collision with a DIFFERENT view on the same page (not the one we're currently editing)
+  if (existing && existing.id !== (activeViewId.value ?? '__none__')) {
+    snvOverwriteTarget.value = existing
+    return
+  }
+  commitSave()
+}
+
+function commitSave() {
+  const name = snvName.value.trim()
+  const state = ampRef.value?.getCurrentState()
+  // Reuse the active view's id only when explicitly overwriting it (same name, few changes)
+  const activeView = activeViewId.value ? views.value.find(v => v.id === activeViewId.value) : null
+  const nameUnchanged = activeView && activeView.name.trim().toLowerCase() === name.toLowerCase()
+  const id = snvOverwriteTarget.value?.id
+    ?? (activeView && nameUnchanged && changeCount.value <= 3 ? activeView.id : `view-${Date.now()}`)
+  const existing = views.value.find(v => v.id === id)
+
+  const savedView: SavedView = {
+    id,
+    name,
+    page: currentPath.value[0] ?? 'Inventory',
+    path: currentPath.value,
+    scope: snvScope.value,
+    createdBy: 'Jakob Buhl',
+    createdAt: existing?.createdAt ?? new Date(),
+    pinned: snvPinned.value,
+    summary: snvSummary.value.trim() || generateStateSummary(),
+    state: state ? {
+      filters: state.filters,
+      sortCol: state.sortCol,
+      sortDir: state.sortDir,
+      groupBy: state.groupBy,
+      density: state.density,
+      visibleColumns: state.visibleColumns,
+    } : undefined,
+  }
+
+  saveView(savedView)
+  activeViewId.value = savedView.id
+  tempViewId.value = savedView.pinned ? null : savedView.id
+  changeCount.value = 0
+  saveViewDialogOpen.value = false
+  snvOverwriteTarget.value = null
+  showToast(`View "${name}" has been saved.`)
+}
 
 // Which parent section stays open — AM stays open when a child of AM is selected
 const openSection = computed(() => {
@@ -92,6 +389,9 @@ const openSection = computed(() => {
 
 // ── Page title (driven by selected nav item) ──────────────────
 const pageTitle = computed(() => {
+  if (selectedItem.value === 'all-views') {
+    return { crumbs: [] as string[], current: 'Views', sub: null as string | null }
+  }
   for (const page of secNavPages) {
     if (page.label === selectedItem.value) {
       // Special case: Asset Management at top level → show sub-label
@@ -138,7 +438,23 @@ function updateIndicator(animate: boolean) {
   indicatorReady.value = true
 }
 
-watch(selectedItem, async () => {
+watch(selectedItem, async (newVal, oldVal) => {
+  if (newVal === 'all-views') previousPage.value = oldVal
+
+  // If the user clicked a nav item (not a view), clear active/temp view state.
+  // We check against all views (not just pinned) since temp views are unpinned.
+  if (activeViewId.value) {
+    const av = views.value.find(v => v.id === activeViewId.value)
+    if (!av || pathToSelectedItem(av.path) !== newVal) {
+      activeViewId.value = null
+      // Also evict the temp slot — it belongs to the old page context
+      if (tempViewId.value) {
+        const tv = views.value.find(v => v.id === tempViewId.value)
+        if (!tv || pathToSelectedItem(tv.path) !== newVal) tempViewId.value = null
+      }
+    }
+  }
+
   await nextTick()
   updateIndicator(true)
   // Re-sync after children collapse so indicator lands correctly
@@ -148,6 +464,21 @@ watch(selectedItem, async () => {
     updateIndicator(false)
   }, 220)
 })
+
+watch(activeViewId, async () => {
+  await nextTick()
+  updateViewIndicator(true)
+})
+
+function onStateChanged() {
+  changeCount.value++
+  activeViewId.value = null
+  // Evict the temp view if it's still unpinned (user edited it away)
+  if (tempViewId.value) {
+    const tv = views.value.find(v => v.id === tempViewId.value)
+    if (!tv || !tv.pinned) tempViewId.value = null
+  }
+}
 
 function onChildrenEnter(el: Element) {
   const e = el as HTMLElement
@@ -208,7 +539,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   <div class="app-shell" style="background: var(--v9-ui-bg); font-family: var(--v9-font);">
 
     <!-- ── Primary nav (AppNav) ───────────────────────────────── -->
-    <aside ref="navRef" class="app-nav" :class="{ 'app-nav--sec-open': !secNavCollapsed }" aria-label="Primary navigation">
+    <aside ref="navRef" class="app-nav" :class="{ 'app-nav--sec-open': !secNavCollapsed && selectedItem !== 'all-views' }" aria-label="Primary navigation">
 
       <!-- Top: logo + main nav items -->
       <div class="app-nav__top">
@@ -228,7 +559,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
             v-for="item in navItems"
             :key="item.label"
             class="app-nav__item"
-            :class="{ 'app-nav__item--active': item.active }"
+            :class="{ 'app-nav__item--active': item.active && selectedItem !== 'all-views' }"
             :aria-label="item.label"
             :aria-current="item.active ? 'page' : undefined"
           >
@@ -314,7 +645,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </aside>
 
     <!-- ── Secondary nav ─────────────────────────────────────── -->
-    <aside class="sec-nav" :class="{ 'sec-nav--collapsed': secNavCollapsed }" aria-label="Secondary navigation">
+    <aside v-show="selectedItem !== 'all-views'" class="sec-nav" :class="{ 'sec-nav--collapsed': secNavCollapsed }" aria-label="Secondary navigation">
 
       <!-- Toggle button — hangs 12px outside the right border, centred with the Pages header -->
       <div class="sec-nav__toggle-wrap">
@@ -391,21 +722,66 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
       <!-- Views section -->
       <div v-show="!secNavCollapsed" class="sec-nav__section sec-nav__section--sep">
-        <div class="sec-nav__section-hdr">
+        <div class="sec-nav__section-hdr sec-nav__section-hdr--views">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" width="20" height="20" class="sec-nav__section-icon" aria-hidden="true"><path d="M14.168 2.5H5.835c-.917 0-1.667.75-1.667 1.667V17.5l5.833-2.5 5.834 2.5V4.167c0-.917-.75-1.667-1.667-1.667m0 12.5-4.167-1.817L5.835 15V4.167h8.333z"/></svg>
           <span class="sec-nav__section-label">Views</span>
+          <!-- Save new view button -->
+          <div class="sec-nav__hdr-ibtn" style="margin-left: auto;">
+            <button
+              ref="saveViewTriggerRef"
+              class="sec-nav__hdr-ibtn-base"
+              aria-label="Save new view"
+              @click="openSaveViewDialog()"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/>
+              </svg>
+            </button>
+            <div class="sec-nav__hdr-tt" role="tooltip">Save new view</div>
+          </div>
         </div>
 
-        <div class="sec-nav__view-list">
-          <button v-for="view in secNavViews" :key="view.label" class="sec-nav__view">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16" class="sec-nav__pin" aria-hidden="true"><path d="M5.909 1.194 1.194 5.91a.67.67 0 0 0 0 .942c.26.26.684.26.943 0l.472-.471 2.357 2.357a1.997 1.997 0 0 1 0 2.828l.942.943 2.815-2.814 3.3 3.3h.942v-.943l-3.3-3.3 2.843-2.842-.943-.943a1.997 1.997 0 0 1-2.828 0L6.38 2.609l.471-.472a.67.67 0 0 0 0-.943.67.67 0 0 0-.942 0"/></svg>
+        <div class="sec-nav__view-list" ref="viewListRef">
+          <!-- Sliding selected-view indicator -->
+          <div class="sec-nav__view-indicator" :style="viewIndicatorStyle" aria-hidden="true" />
+
+          <div
+            v-for="view in secNavViews"
+            :key="view.id"
+            class="sec-nav__view"
+            :class="{ 'sec-nav__view--active': activeViewId === view.id }"
+            :ref="(el: any) => { if (el) viewButtonRefs[view.id] = el }"
+            role="button"
+            tabindex="0"
+            @click="applyView(view)"
+            @keydown.enter.prevent="applyView(view)"
+            @keydown.space.prevent="applyView(view)"
+          >
+            <!-- Pin toggle — outline when unpinned, filled when pinned -->
+            <button
+              class="sec-nav__pin-btn"
+              :class="{ 'sec-nav__pin-btn--pinned': view.pinned }"
+              :aria-label="view.pinned ? 'Unpin view' : 'Pin view'"
+              :aria-pressed="view.pinned"
+              @click.stop="handlePinToggle(view.id)"
+            >
+              <svg v-if="!view.pinned" fill="currentColor" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                <path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/>
+              </svg>
+              <svg v-else fill="currentColor" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="m8.863 1.792-7.071 7.07a1.003 1.003 0 0 0 0 1.415 1.003 1.003 0 0 0 1.414 0l.707-.707 3.536 3.535a2.996 2.996 0 0 1 0 4.243l1.414 1.414 4.221-4.221 4.95 4.95h1.414v-1.415l-4.95-4.95 4.264-4.263-1.414-1.414a2.996 2.996 0 0 1-4.243 0L9.57 3.913l.707-.707a1.003 1.003 0 0 0 0-1.414 1.003 1.003 0 0 0-1.414 0"/>
+              </svg>
+            </button>
             <div class="sec-nav__view-text">
-              <span class="sec-nav__view-name">{{ view.label }}</span>
-              <span class="sec-nav__view-context">{{ view.context }}</span>
+              <span class="sec-nav__view-name">{{ view.name }}</span>
             </div>
-          </button>
-          <button class="sec-nav__all-views">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+          </div>
+          <button
+            class="sec-nav__all-views"
+            :class="{ 'sec-nav__all-views--active': selectedItem === 'all-views' }"
+            @click="selectedItem = 'all-views'"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
               <circle cx="5" cy="10" r="1.5"/>
               <circle cx="10" cy="10" r="1.5"/>
               <circle cx="15" cy="10" r="1.5"/>
@@ -540,11 +916,190 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
       </div>
 
       <!-- Main content -->
-      <main id="main" tabindex="-1" class="app-page">
-        <AssetManagementPage :title="pageTitle" />
+      <main id="main" tabindex="-1" class="app-page" :class="{ 'app-page--views': selectedItem === 'all-views' }">
+        <SavedViewsPage v-if="selectedItem === 'all-views'" :previous-page-label="previousPageLabel" @back="selectedItem = previousPage" @navigate-to-view="navigateToView" />
+        <AssetManagementPage ref="ampRef" v-else :key="viewStateKey" :title="pageTitle" :initial-state="activeViewState ?? undefined" @state-changed="onStateChanged" />
       </main>
     </div>
   </div>
+
+  <!-- ── Save new view dialog ─────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="overlay">
+      <div v-if="saveViewDialogOpen" class="snv-overlay" @click="saveViewDialogOpen = false" />
+    </Transition>
+    <Transition name="dialog">
+      <div
+        v-if="saveViewDialogOpen"
+        ref="saveViewDialogRef"
+        class="snv-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="snv-title"
+        @keydown.escape.stop="saveViewDialogOpen = false"
+        @keydown.tab="handleDialogKeydown"
+        @click.stop
+      >
+        <!-- Top bar -->
+        <div class="snv-dialog__top-bar">
+          <button class="snv-dialog__dismiss" aria-label="Dismiss" @click="saveViewDialogOpen = false">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="snv-dialog__content snv-dialog__content--form">
+          <h2 id="snv-title" class="snv-dialog__title">Save new view</h2>
+          <!-- View name -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-name">View name</label>
+            <span class="snv-info">Make it concise and descriptive, so it is easy to find.</span>
+            <div class="snv-combobox">
+              <input
+                id="snv-name"
+                v-model="snvName"
+                class="snv-input"
+                type="text"
+                placeholder="e.g. Critical repos — no SCA"
+                autocomplete="off"
+                role="combobox"
+                :aria-expanded="snvNameSuggestions.length > 0"
+                aria-autocomplete="list"
+                aria-controls="snv-name-listbox"
+                @focus="snvNameFocused = true"
+                @blur="handleSnvNameBlur"
+                @keydown="handleSnvNameKeydown"
+                @input="snvNameHighlighted = -1"
+              />
+              <div
+                v-if="snvNameSuggestions.length"
+                id="snv-name-listbox"
+                class="snv-combobox__dropdown"
+                role="listbox"
+              >
+                <template v-for="(view, i) in snvNameSuggestions" :key="view.id">
+                  <div v-if="i === snvNameDividerAfter" class="snv-combobox__divider" aria-hidden="true" />
+                  <div
+                    class="snv-combobox__option"
+                    :class="{ 'snv-combobox__option--active': i === snvNameHighlighted }"
+                    role="option"
+                    :aria-selected="i === snvNameHighlighted"
+                    @mousedown.prevent="selectSnvNameSuggestion(view)"
+                  >
+                    <span class="snv-combobox__name">{{ view.name }}</span>
+                    <span class="snv-combobox__page">{{ view.path.join(' / ') }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+          <!-- Summary -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-summary">View summary</label>
+            <span class="snv-info">Describe the use and purpose of the view.</span>
+            <textarea
+              id="snv-summary"
+              v-model="snvSummary"
+              class="snv-input snv-input--textarea"
+              rows="3"
+              placeholder="Describe the use and purpose of this view."
+            />
+          </div>
+          <!-- Page (disabled) -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-page">Page</label>
+            <input
+              id="snv-page"
+              class="snv-input snv-input--disabled"
+              type="text"
+              :value="currentPageLabel"
+              disabled
+            />
+          </div>
+          <!-- Scope -->
+          <div class="snv-field">
+            <label class="snv-label" for="snv-scope">Scope</label>
+            <div class="snv-select-wrap">
+              <select id="snv-scope" v-model="snvScope" class="snv-select">
+                <option value="only-me">Only me</option>
+                <option value="everyone">Everyone</option>
+                <option value="admin">Admin</option>
+              </select>
+              <svg class="snv-select-chevron" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Pin checkbox -->
+          <label class="snv-checkbox-row">
+            <span class="snv-checkbox-box" :class="{ 'snv-checkbox-box--checked': snvPinned }" aria-hidden="true">
+              <svg v-if="snvPinned" viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
+              </svg>
+            </span>
+            <input type="checkbox" v-model="snvPinned" class="snv-checkbox-input" />
+            <svg fill="currentColor" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" class="snv-pin-icon">
+              <path d="M11.668 3.333V7.5c0 .933.308 1.8.833 2.5h-5a4.12 4.12 0 0 0 .834-2.5V3.333zm2.5-1.666H5.835A.836.836 0 0 0 5 2.5c0 .458.375.833.834.833h.833V7.5c0 1.383-1.117 2.5-2.5 2.5v1.667h4.975V17.5l.833.833.834-.833v-5.833h5.025V10a2.497 2.497 0 0 1-2.5-2.5V3.333h.833a.836.836 0 0 0 .833-.833.836.836 0 0 0-.833-.833"/>
+            </svg>
+            <span class="snv-checkbox-label">Pin view</span>
+          </label>
+        </div>
+
+        <div class="snv-dialog__footer">
+          <div class="snv-dialog__footer-right">
+            <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="saveViewDialogOpen = false">Cancel</button>
+            <button class="snv-dialog__btn snv-dialog__btn--primary" :disabled="!snvName.trim()" @click="handleSaveView">Save view</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMessage" class="snv-toast" role="status" aria-live="polite">
+        <span class="snv-toast__msg">{{ toastMessage }}</span>
+        <button class="snv-toast__dismiss" aria-label="Dismiss notification" @click="toastMessage = null">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+    </Transition>
+
+    <!-- ── Overwrite confirm alert ──────────────────────────────── -->
+    <Transition name="overlay">
+      <div v-if="snvOverwriteTarget" class="snv-alert-overlay" @click="snvOverwriteTarget = null" />
+    </Transition>
+    <Transition name="dialog">
+      <div
+        v-if="snvOverwriteTarget"
+        class="snv-alert"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="snv-alert-title"
+        aria-describedby="snv-alert-desc"
+        @keydown.escape.stop="snvOverwriteTarget = null"
+        @click.stop
+      >
+        <!-- Icon box -->
+        <div class="snv-alert__icon-box">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <h2 id="snv-alert-title" class="snv-alert__title">View already exists</h2>
+        <p id="snv-alert-desc" class="snv-alert__desc">
+          A view named <strong>{{ snvOverwriteTarget?.name }}</strong> already exists.
+          Do you want to overwrite it, or save as a new view with a different name?
+        </p>
+        <div class="snv-alert__footer">
+          <button class="snv-dialog__btn snv-dialog__btn--secondary" @click="snvOverwriteTarget = null">Cancel</button>
+          <button class="snv-dialog__btn snv-dialog__btn--danger" @click="commitSave">Overwrite</button>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1105,30 +1660,69 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
 /* ── Views section ──────────────────────────────────────────── */
 .sec-nav__view-list {
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
 }
 
+/* Sliding selected-view indicator — same visual style as page indicator */
+.sec-nav__view-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .sec-nav__view {
+  position: relative;
+  z-index: 3;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--v9-space-xs); /* 6px */
   width: 100%;
-  padding: var(--v9-space-m); /* 12px */
+  padding: var(--v9-space-xs) var(--v9-space-s); /* tighter than before to fit pin btn */
+  border-radius: var(--v9-radius-m);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+  /* remove the old outline — focus goes to inner pin btn or the row itself */
+}
+.sec-nav__view:not(.sec-nav__view--active):hover { background: var(--v9-ui-hover); }
+.sec-nav__view:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; border-radius: var(--v9-radius-m); }
+.sec-nav__view--active .sec-nav__view-name { font-weight: var(--v9-font-weight-strong); }
+
+/* Pin toggle button */
+.sec-nav__pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
   border: none;
   border-radius: var(--v9-radius-m);
   background: none;
   cursor: pointer;
-  text-align: left;
-}
-.sec-nav__view:hover { background: var(--v9-ui-hover); }
-.sec-nav__view:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
-
-.sec-nav__pin {
-  flex-shrink: 0;
-  margin-top: 2px; /* optically align with first text line */
   color: var(--v9-ui-icon);
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
+/* Show on row hover or when the view is active/unpinned */
+.sec-nav__view:hover .sec-nav__pin-btn,
+.sec-nav__view--active .sec-nav__pin-btn,
+.sec-nav__pin-btn--pinned {
+  opacity: 1;
+}
+.sec-nav__pin-btn:hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+.sec-nav__pin-btn--pinned { color: var(--v9-ui-text); }
+.sec-nav__pin-btn:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; opacity: 1; }
 
 .sec-nav__view-text {
   display: flex;
@@ -1176,6 +1770,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   text-align: left;
 }
 .sec-nav__all-views:hover { background: var(--v9-ui-hover); }
+.sec-nav__all-views--active {
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  box-shadow: 0px 3px 2px -2px rgba(28, 28, 33, 0.2);
+  font-weight: var(--v9-font-weight-strong);
+}
 
 /* ── UserNav ──────────────────────────────────────────────────── */
 .user-nav {
@@ -1490,4 +2090,430 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
   flex: 1;
   min-width: 0;
 }
+.app-page--views {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Section header icon button (Views "Save new view") ───────── */
+.sec-nav__section-hdr--views {
+  padding-right: 0;
+  margin-right: -4px;
+}
+
+.sec-nav__hdr-ibtn {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sec-nav__hdr-ibtn-base {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: var(--v9-space-xs); /* 6px */
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  cursor: pointer;
+  color: var(--v9-ui-dimmed);
+  transition: background 0.1s, color 0.1s;
+}
+.sec-nav__hdr-ibtn-base:hover {
+  background: var(--v9-ui-hover);
+  color: var(--v9-ui-text);
+}
+.sec-nav__hdr-ibtn-base:focus-visible {
+  outline: 2px solid var(--v9-ui-focus);
+  outline-offset: -2px;
+}
+
+/* Tooltip — opens below the button */
+.sec-nav__hdr-tt {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  height: 28px;
+  padding: 0 var(--v9-space-s);
+  display: flex;
+  align-items: center;
+  background: var(--v9-tooltip-bg);
+  color: var(--v9-tooltip-text);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.1), 0px 4px 6px -2px rgba(0,0,0,0.06);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease 0.3s;
+  z-index: 500;
+}
+.sec-nav__hdr-ibtn:hover .sec-nav__hdr-tt { opacity: 1; }
+
+/* ── Overlay ──────────────────────────────────────────────────── */
+.snv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  backdrop-filter: blur(3px);
+  cursor: default;
+  /* Baseline dark tint so it dims correctly in light mode too */
+  background: rgba(0, 0, 0, 0.25);
+}
+.snv-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--v9-ui-bg);
+  opacity: 0.35;
+}
+.snv-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--v9-ui-text);
+  opacity: 0.08;
+}
+
+/* Overlay transition */
+.overlay-enter-active,
+.overlay-leave-active { transition: opacity 0.2s ease; }
+.overlay-enter-from,
+.overlay-leave-to { opacity: 0; }
+
+/* ── Dialog panel ─────────────────────────────────────────────── */
+.snv-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 201;
+  width: 512px;
+  background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-l);
+  box-shadow: 0px 20px 12.5px rgba(0,0,0,0.10), 0px 10px 5px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dialog transition — lifts up and fades in */
+.dialog-enter-active {
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dialog-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.dialog-enter-from {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 12px)) scale(0.96);
+}
+.dialog-leave-to {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 8px)) scale(0.97);
+}
+
+.snv-dialog__top-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--v9-space-m);
+}
+
+.snv-dialog__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--v9-radius-m);
+  background: none;
+  cursor: pointer;
+  color: var(--v9-ui-dimmed);
+  transition: background 0.1s, color 0.1s;
+}
+.snv-dialog__dismiss:hover { background: var(--v9-ui-hover); color: var(--v9-ui-text); }
+.snv-dialog__dismiss:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+.snv-dialog__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v9-space-m);
+  padding: 0 var(--v9-space-xxl) var(--v9-space-xxl) var(--v9-space-xxl);
+}
+
+.snv-dialog__title {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-xl);
+  font-weight: var(--v9-font-weight-strong);
+  line-height: var(--v9-line-height-l);
+  color: var(--v9-ui-text);
+}
+
+.snv-dialog__description {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+}
+
+.snv-dialog__footer {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--v9-ui-border-light);
+  padding: var(--v9-space-m) var(--v9-space-xxl);
+}
+
+.snv-dialog__footer-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-m);
+}
+
+.snv-dialog__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v9-space-xs);
+  height: 32px;
+  padding: 0 var(--v9-space-m);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.06);
+}
+.snv-dialog__btn--secondary {
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  color: var(--v9-ui-text);
+}
+.snv-dialog__btn--secondary:hover { background: var(--v9-ui-hover); }
+.snv-dialog__btn--secondary:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+.snv-dialog__btn--primary {
+  background: var(--v9-input-primary-bg);
+  border: 1px solid var(--v9-input-primary-bg);
+  color: var(--v9-input-primary-text);
+}
+.snv-dialog__btn--primary:hover { filter: brightness(1.1); }
+.snv-dialog__btn--primary:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+
+/* ── Dialog form ──────────────────────────────────────────────── */
+.snv-dialog__content--form {
+  padding-top: var(--v9-space-xl);
+}
+.snv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.snv-label {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-strong);
+  color: var(--v9-ui-text);
+  line-height: var(--v9-line-height-m);
+}
+.snv-info {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  color: var(--v9-ui-dimmed);
+  line-height: var(--v9-line-height-s);
+}
+.snv-input {
+  height: 32px;
+  padding: 0 var(--v9-space-s);
+  background: var(--v9-input-bg);
+  border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  color: var(--v9-ui-text);
+  outline: none;
+  transition: border-color 0.1s, box-shadow 0.1s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.snv-input:focus { border-color: var(--v9-ui-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 20%, transparent); }
+.snv-input--textarea { height: auto; padding: var(--v9-space-xs) var(--v9-space-s); resize: vertical; line-height: var(--v9-line-height-m); }
+.snv-input--disabled { background: var(--v9-ui-canvas); color: var(--v9-ui-dimmed); cursor: not-allowed; }
+
+
+/* View name combobox dropdown */
+.snv-combobox { position: relative; }
+.snv-combobox__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 224px; /* 7 rows × 32px */
+  overflow-y: auto;
+  background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.10), 0px 4px 6px -2px rgba(0,0,0,0.06);
+}
+.snv-combobox__option {
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-m);
+  padding: 0 var(--v9-space-s);
+  height: 32px;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.snv-combobox__option:hover,
+.snv-combobox__option--active { background: var(--v9-ui-hover); }
+.snv-combobox__divider {
+  height: 1px;
+  background: var(--v9-ui-border-light);
+  margin: var(--v9-space-xxs) 0;
+}
+.snv-combobox__name {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  color: var(--v9-ui-text);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.snv-combobox__page {
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-s);
+  color: var(--v9-ui-dimmed);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.snv-select-wrap { position: relative; display: flex; align-items: center; }
+.snv-select {
+  width: 100%; height: 32px;
+  padding: 0 var(--v9-space-xl) 0 var(--v9-space-s);
+  background: var(--v9-input-bg); border: 1px solid var(--v9-input-border);
+  border-radius: var(--v9-radius-m);
+  font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text);
+  appearance: none; -webkit-appearance: none; outline: none; cursor: pointer;
+  box-sizing: border-box; transition: border-color 0.1s;
+}
+.snv-select:focus { border-color: var(--v9-ui-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--v9-ui-focus) 20%, transparent); }
+.snv-select-chevron { position: absolute; right: var(--v9-space-s); pointer-events: none; color: var(--v9-ui-dimmed); }
+.snv-checkbox-row { display: flex; align-items: center; gap: var(--v9-space-xs); cursor: pointer; user-select: none; }
+.snv-checkbox-input { position: absolute; opacity: 0; width: 0; height: 0; }
+.snv-checkbox-box {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--v9-radius-s); border: 1.5px solid var(--v9-input-border);
+  background: var(--v9-input-bg); transition: background 0.1s, border-color 0.1s;
+}
+.snv-checkbox-box--checked { background: var(--v9-ui-selected); border-color: var(--v9-ui-selected); color: var(--v9-ui-bg); }
+.snv-checkbox-row:hover .snv-checkbox-box:not(.snv-checkbox-box--checked) { background: var(--v9-ui-hover); }
+.snv-pin-icon { color: var(--v9-ui-dimmed); flex-shrink: 0; }
+.snv-checkbox-label { font-family: var(--v9-font); font-size: var(--v9-font-size-m); color: var(--v9-ui-text); line-height: var(--v9-line-height-m); }
+
+/* Overwrite confirm */
+/* ── Overwrite alert dialog ───────────────────────────────────── */
+.snv-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 202; /* above the save dialog (201) */
+  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: default;
+}
+
+.snv-alert {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 203;
+  width: 400px;
+  background: var(--v9-ui-bg);
+  border: 1px solid var(--v9-ui-border-light);
+  border-radius: var(--v9-radius-l);
+  box-shadow: 0px 20px 12.5px rgba(0,0,0,0.12), 0px 10px 5px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  padding: var(--v9-space-xxl);
+  gap: var(--v9-space-m);
+}
+
+.snv-alert__icon-box {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--v9-radius-l);
+  background: var(--v9-warning-bg, #fef3c7);
+  border: 1px solid var(--v9-warning-border, #fcd34d);
+  color: var(--v9-warning-main, #d97706);
+}
+
+.snv-alert__title {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-xl);
+  font-weight: var(--v9-font-weight-strong);
+  line-height: var(--v9-line-height-l);
+  color: var(--v9-ui-text);
+}
+
+.snv-alert__desc {
+  margin: 0;
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  color: var(--v9-ui-text);
+}
+
+.snv-alert__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--v9-space-m);
+  padding-top: var(--v9-space-xs);
+}
+.snv-dialog__btn--danger { background: var(--v9-danger-main); border: 1px solid var(--v9-danger-main); color: #fff; }
+.snv-dialog__btn--danger:hover { filter: brightness(1.1); }
+.snv-dialog__btn--danger:focus-visible { outline: 2px solid var(--v9-ui-focus); outline-offset: -2px; }
+.snv-dialog__btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+/* Toast */
+.snv-toast {
+  position: fixed; top: var(--v9-space-xl); right: var(--v9-space-xl); z-index: 300;
+  display: flex; align-items: center; gap: var(--v9-space-m);
+  max-width: 360px; padding: var(--v9-space-s) var(--v9-space-s) var(--v9-space-s) var(--v9-space-m);
+  background: var(--v9-ui-selected); color: var(--v9-ui-bg);
+  border-radius: var(--v9-radius-m);
+  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.15), 0px 4px 6px -2px rgba(0,0,0,0.08);
+  font-family: var(--v9-font); font-size: var(--v9-font-size-m); line-height: var(--v9-line-height-m);
+}
+.snv-toast__msg { flex: 1; }
+.snv-toast__dismiss {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: none; border-radius: var(--v9-radius-s);
+  background: none; cursor: pointer; color: inherit; opacity: 0.7; flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.snv-toast__dismiss:hover { opacity: 1; }
+.toast-enter-active { transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.toast-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.toast-enter-from { opacity: 0; transform: translateX(16px); }
+.toast-leave-to   { opacity: 0; transform: translateX(16px); }
 </style>
