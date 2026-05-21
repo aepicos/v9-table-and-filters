@@ -251,8 +251,10 @@ function handleSnvNameBlur() {
 
 // Toast
 const toastMessage = ref<string | null>(null)
-function showToast(msg: string) {
+const toastType = ref<'info' | 'success' | 'warning' | 'danger'>('success')
+function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'danger' = 'success') {
   toastMessage.value = msg
+  toastType.value = type
 }
 
 const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -1057,10 +1059,14 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
     </Transition>
     <!-- Toast -->
     <Transition name="toast">
-      <div v-if="toastMessage" class="snv-toast" role="status" aria-live="polite">
-        <span class="snv-toast__msg">{{ toastMessage }}</span>
+      <div v-if="toastMessage" class="snv-toast" :class="`snv-toast--${toastType}`" role="status" aria-live="polite">
+        <!-- Left status border -->
+        <div class="snv-toast__border" aria-hidden="true" />
+        <!-- Message -->
+        <p class="snv-toast__msg">{{ toastMessage }}</p>
+        <!-- Dismiss button -->
         <button class="snv-toast__dismiss" aria-label="Dismiss notification" @click="toastMessage = null">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
             <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
         </button>
@@ -2496,24 +2502,62 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick))
 
 /* Toast */
 .snv-toast {
-  position: fixed; top: var(--v9-space-xl); right: var(--v9-space-xl); z-index: 300;
-  display: flex; align-items: center; gap: var(--v9-space-m);
-  max-width: 360px; padding: var(--v9-space-s) var(--v9-space-s) var(--v9-space-s) var(--v9-space-m);
-  background: var(--v9-ui-selected); color: var(--v9-ui-bg);
+  position: fixed;
+  top: var(--v9-space-xl);    /* 24px */
+  right: var(--v9-space-xl);  /* 24px */
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: var(--v9-space-m);     /* 12px */
+  min-width: 240px;
+  max-width: 400px;
+  /* Asymmetric: right is wider to give room for dismiss button, left is tighter (status border sits there) */
+  padding: var(--v9-space-l) var(--v9-space-xxl) var(--v9-space-l) var(--v9-space-xl); /* 16px 32px 16px 24px */
+  /* Dark pill — same in light and dark mode */
+  background: var(--v9-input-primary-bg);
+  color: var(--v9-tooltip-text);
   border-radius: var(--v9-radius-m);
-  box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.15), 0px 4px 6px -2px rgba(0,0,0,0.08);
-  font-family: var(--v9-font); font-size: var(--v9-font-size-m); line-height: var(--v9-line-height-m);
+  box-shadow: 0px 20px 25px -5px rgba(0,0,0,0.10), 0px 10px 10px -5px rgba(0,0,0,0.06);
+  font-family: var(--v9-font);
+  font-size: var(--v9-font-size-m);
+  font-weight: var(--v9-font-weight-regular);
+  line-height: var(--v9-line-height-m);
+  overflow: hidden; /* clip the status border to rounded corners */
 }
-.snv-toast__msg { flex: 1; }
+
+/* Left status border — 4px coloured strip */
+.snv-toast__border {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+}
+.snv-toast--info    .snv-toast__border { background: var(--v9-info-main); }
+.snv-toast--success .snv-toast__border { background: var(--v9-success-main); }
+.snv-toast--warning .snv-toast__border { background: var(--v9-warning-main); }
+.snv-toast--danger  .snv-toast__border { background: var(--v9-danger-main); }
+
+.snv-toast__msg {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .snv-toast__dismiss {
+  position: absolute;
+  top: 2px; right: 2px;
   display: flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border: none; border-radius: var(--v9-radius-s);
-  background: none; cursor: pointer; color: inherit; opacity: 0.7; flex-shrink: 0;
+  width: 24px; height: 24px;
+  border: none; border-radius: var(--v9-radius-m);
+  background: none; cursor: pointer;
+  color: var(--v9-tooltip-text);
+  opacity: 0.6;
   transition: opacity 0.1s;
+  flex-shrink: 0;
 }
 .snv-toast__dismiss:hover { opacity: 1; }
+
 .toast-enter-active { transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .toast-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
-.toast-enter-from { opacity: 0; transform: translateX(16px); }
-.toast-leave-to   { opacity: 0; transform: translateX(16px); }
+.toast-enter-from   { opacity: 0; transform: translateX(16px); }
+.toast-leave-to     { opacity: 0; transform: translateX(16px); }
 </style>
